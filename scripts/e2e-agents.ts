@@ -23,6 +23,8 @@ import { ResponseInterpreterPort } from "@/src/core/application/ports/ResponseIn
 import { SendTimingPort } from "@/src/core/application/ports/SendTimingPort";
 import { StrategyPlannerPort } from "@/src/core/application/ports/StrategyPlannerPort";
 import { TenantOpsMetricsPort } from "@/src/core/application/ports/TenantOpsMetricsPort";
+import { TemplateLibraryPort } from "@/src/core/application/ports/TemplateLibraryPort";
+import { TemplatePerformancePort } from "@/src/core/application/ports/TemplatePerformancePort";
 import { RetryExecutor } from "@/src/core/application/services/RetryExecutor";
 import { ExecuteOutreachBookingLoopUseCase } from "@/src/core/application/use-cases/ExecuteOutreachBookingLoopUseCase";
 import { OrchestrateLeadLifecycleUseCase } from "@/src/core/application/use-cases/OrchestrateLeadLifecycleUseCase";
@@ -101,6 +103,23 @@ class InMemoryOpsMetrics implements TenantOpsMetricsPort {
 }
 
 const strategyPlanner: StrategyPlannerPort = { async plan() { return { sequenceId: "seq-project-x", step: 1, channel: "email" }; } };
+const templateLibrary: TemplateLibraryPort = {
+  async getBestPerforming() {
+    return [
+      {
+        id: "tpl-e2e-1",
+        name: "E2E Intro",
+        segment: "default",
+        sequenceStep: 1,
+        subjectTemplate: "Quick idea for {{company}}",
+        bodyTemplate: "Hi {{firstName}}, open to a short walkthrough?",
+        replyRate: 0.12,
+        bookingRate: 0.04,
+      },
+    ];
+  },
+};
+const templatePerformance: TemplatePerformancePort = { async recordOutcome() {} };
 let draftedSubject = "";
 let draftedBody = "";
 const draftedHtml = () =>
@@ -191,7 +210,12 @@ async function trySendEmail(): Promise<{
     sent: true,
     messageId: info.messageId,
     smtpResponse: info.response,
-    envelope: info.envelope ? { from: info.envelope.from, to: info.envelope.to as string[] } : undefined,
+    envelope: info.envelope
+      ? {
+          from: typeof info.envelope.from === "string" ? info.envelope.from : "",
+          to: Array.isArray(info.envelope.to) ? (info.envelope.to as string[]) : [],
+        }
+      : undefined,
   };
 }
 
@@ -234,6 +258,8 @@ async function main() {
     eventBus,
     idempotency,
     strategyPlanner,
+    templateLibrary,
+    templatePerformance,
     composer,
     timing,
     confidenceGate,

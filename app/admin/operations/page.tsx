@@ -1,53 +1,99 @@
+"use client";
+
 import Link from "next/link";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { createClient } from "@/utils/supabase/server";
-import { TenantOpsMetricsPort } from "@/src/core/application/ports/TenantOpsMetricsPort";
-import { getAppContainer } from "@/src/core/infrastructure/ioc/bootstrap";
-import { IoCTokens } from "@/src/core/infrastructure/ioc/tokens";
+import { getOperationsMetrics } from "@/lib/api/operations";
+import { AppShell } from "@/src/components/shared/AppShell";
+import { KpiCard } from "@/src/components/shared/KpiCard";
+import { Toast } from "@/src/components/shared/Toast";
 
-export default async function OperationsPage() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function OperationsPage() {
+  const [metrics, setMetrics] = useState<{
+    tenantId: string;
+    successCount: number;
+    failureCount: number;
+    lastUpdatedAt: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [toast, setToast] = useState<{ tone: "success" | "error" | "info"; message: string } | null>(null);
 
-  if (!user) {
-    redirect("/auth/sign-in");
-  }
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const payload = await getOperationsMetrics();
+      setMetrics(payload.data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load metrics.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const activeTenant = (user.app_metadata?.tenant_id as string | undefined) ?? "";
-  if (!activeTenant) {
-    return (
-      <main style={{ maxWidth: 760, margin: "48px auto", padding: 16 }}>
-        <h1>Operations Dashboard</h1>
-        <p>Set an active tenant claim before viewing operations metrics.</p>
-        <p>
-          Use <Link href="/admin/tenant-claims">tenant claim admin</Link>.
-        </p>
-      </main>
-    );
-  }
+  useEffect(() => {
+    void load();
+  }, []);
 
-  const container = getAppContainer();
-  const metricsPort = container.resolve<TenantOpsMetricsPort>(IoCTokens.TenantOpsMetrics);
-  const metrics = await metricsPort.getByTenant(activeTenant);
-  const total = metrics.successCount + metrics.failureCount;
-  const successRate = total > 0 ? ((metrics.successCount / total) * 100).toFixed(2) : "0.00";
+  useEffect(() => {
+    if (!autoRefresh) {
+      return;
+    }
+    const timer = setInterval(() => {
+      void load();
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [autoRefresh]);
+
+  const total = (metrics?.successCount ?? 0) + (metrics?.failureCount ?? 0);
+  const successRate =
+    total > 0 ? (((metrics?.successCount ?? 0) / total) * 100).toFixed(2) : "0.00";
 
   return (
-    <main style={{ maxWidth: 760, margin: "48px auto", padding: 16 }}>
-      <h1>Operations Dashboard</h1>
-      <p>Tenant: {metrics.tenantId}</p>
-      <p>Completed runs: {metrics.successCount}</p>
-      <p>Failed runs: {metrics.failureCount}</p>
-      <p>Success rate: {successRate}%</p>
-
-      <p style={{ marginTop: 24 }}>
-        Back to <Link href="/">workspace</Link>.
-      </p>
-    </main>
+    <AppShell
+      title="Operations Dashboard"
+      subtitle={metrics ? `Tenant ${metrics.tenantId}` : "Track reliability and workflow success"}
+      showAdminLinks
+    >
+      {toast ? <Toast tone={toast.tone} message={toast.message} /> : null}
+      {loading ? <p>Loading operations metrics...</p> : null}
+      {error ? <p style={{ color: "crimson" }}>{error}</p> : null}
+      <section className="ale-row">
+        <KpiCard label="Completed Runs" value={metrics?.successCount ?? 0} />
+        <KpiCard label="Failed Runs" value={metrics?.failureCount ?? 0} />
+        <KpiCard label="Success Rate" value={`${successRate}%`} />
+        <KpiCard
+          label="Last Updated"
+          value={metrics ? new Date(metrics.lastUpdatedAt).toLocaleTimeString() : "-"}
+          hint={autoRefresh ? "Auto-refresh every 15s" : "Manual refresh mode"}
+        />
+      </section>
+      <section className="ale-row" style={{ marginTop: 12 }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(event) => setAutoRefresh(event.target.checked)}
+          />{" "}
+          Auto-refresh
+        </label>
+        <button
+          className="ale-button"
+          onClick={async () => {
+            await load();
+            setToast({ tone: "info", message: "Metrics refreshed." });
+          }}
+        >
+          Refresh now
+        </button>
+      </section>
+      <section className="ale-card" style={{ marginTop: 16 }}>
+        <p>
+          Need claim changes? <Link href="/admin/tenant-claims">Open tenant claim admin</Link>.
+        </p>
+      </section>
+    </AppShell>
   );
 }

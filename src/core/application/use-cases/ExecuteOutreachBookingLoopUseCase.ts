@@ -15,6 +15,8 @@ import { PolicyEnginePort } from "@/src/core/application/ports/PolicyEnginePort"
 import { ResponseInterpreterPort } from "@/src/core/application/ports/ResponseInterpreterPort";
 import { SendTimingPort } from "@/src/core/application/ports/SendTimingPort";
 import { StrategyPlannerPort } from "@/src/core/application/ports/StrategyPlannerPort";
+import { TemplateLibraryPort } from "@/src/core/application/ports/TemplateLibraryPort";
+import { TemplatePerformancePort } from "@/src/core/application/ports/TemplatePerformancePort";
 import { AgentAction } from "@/src/core/domain/agent/AgentAction";
 import { AgentDecision } from "@/src/core/domain/agent/AgentDecision";
 import { DomainEventType } from "@/src/core/domain/events/DomainEventType";
@@ -40,6 +42,8 @@ export class ExecuteOutreachBookingLoopUseCase {
     private readonly eventBus: EventBusPort,
     private readonly idempotency: IdempotencyPort,
     private readonly strategyPlanner: StrategyPlannerPort,
+    private readonly templateLibrary: TemplateLibraryPort,
+    private readonly templatePerformance: TemplatePerformancePort,
     private readonly composer: MessageComposerPort,
     private readonly timing: SendTimingPort,
     private readonly confidenceGate: ConfidenceGatePort,
@@ -98,19 +102,38 @@ export class ExecuteOutreachBookingLoopUseCase {
       throw new Error("Lead must be qualified or in outreach state.");
     }
 
-    const plan = await this.strategyPlanner.plan({ tenantId: tenantId.value, leadId: leadId.value });
+    const plan = await this.strategyPlanner.plan({
+      tenantId: tenantId.value,
+      leadId: leadId.value,
+      leadEmail: lead.email,
+    });
+    const templateCandidates = await this.templateLibrary.getBestPerforming({
+      tenantId: tenantId.value,
+      segment: "default",
+      sequenceStep: plan.step,
+      limit: 3,
+    });
+    const selectedTemplateId = templateCandidates[0]?.id;
     await this.saveDecision(tenantId.value, leadId.value, {
       action: AgentAction.PlanSequence,
       confidence: 0.85,
       reasoning: "Selected sequence for qualified lead.",
       alternatives: [],
-      metadata: { sequenceId: plan.sequenceId, step: plan.step },
+      metadata: { sequenceId: plan.sequenceId, step: plan.step, selectedTemplateId },
     });
 
     const message = await this.composer.compose({
       tenantId: tenantId.value,
       leadId: leadId.value,
       sequenceId: plan.sequenceId,
+      templateCandidates: templateCandidates.map((template) => ({
+        id: template.id,
+        subjectTemplate: template.subjectTemplate,
+        bodyTemplate: template.bodyTemplate,
+        replyRate: template.replyRate,
+        bookingRate: template.bookingRate,
+      })),
+      selectedTemplateId,
     });
     await this.saveDecision(tenantId.value, leadId.value, {
       action: AgentAction.ComposeMessage,
@@ -138,6 +161,13 @@ export class ExecuteOutreachBookingLoopUseCase {
       alternatives: [],
       metadata: { sequenceId: plan.sequenceId, scheduledAt },
     });
+    if (selectedTemplateId) {
+      await this.templatePerformance.recordOutcome({
+        templateId: selectedTemplateId,
+        replied: false,
+        booked: false,
+      });
+    }
 
     const sendConfidence = 0.84;
     await this.policy.assertAllowed({
@@ -226,6 +256,13 @@ export class ExecuteOutreachBookingLoopUseCase {
       });
       await this.kpi.increment({ tenantId: tenantId.value, metric: "reply_received" });
       await this.kpi.increment({ tenantId: tenantId.value, metric: "reply_rate_numerator" });
+      if (selectedTemplateId) {
+        await this.templatePerformance.recordOutcome({
+          templateId: selectedTemplateId,
+          replied: true,
+          booked: false,
+        });
+      }
 
       if (intent === ResponseIntent.Positive) {
         lead.transitionTo(LeadState.Replied);
@@ -296,6 +333,13 @@ export class ExecuteOutreachBookingLoopUseCase {
             signal: "positive_reply_booked",
             payload: { meetingId: bookingResult.meetingId ?? null },
           });
+          if (selectedTemplateId) {
+            await this.templatePerformance.recordOutcome({
+              templateId: selectedTemplateId,
+              replied: true,
+              booked: true,
+            });
+          }
           result = { status: "booked", leadId: lead.id.value };
         } else {
           await this.learning.capture({

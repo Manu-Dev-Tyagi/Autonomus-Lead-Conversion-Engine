@@ -14,24 +14,28 @@ export default async function SignInPage({
   const checkEmail = params.check_email === "1";
 
   return (
-    <main style={{ maxWidth: 560, margin: "48px auto", padding: 16 }}>
-      <h1>Sign in</h1>
-      <p>Use a magic link to access your tenant workspace.</p>
+    <main className="ale-container" style={{ maxWidth: 560 }}>
+      <section className="ale-card">
+        <h1>Sign in to ALE</h1>
+        <p className="ale-muted">Use your work email to access your tenant workspace.</p>
 
-      {hasError ? <p>Unable to sign in. Please try again.</p> : null}
-      {checkEmail ? <p>Check your inbox for the sign-in link.</p> : null}
+        {hasError ? <p style={{ color: "crimson" }}>Unable to sign in. Please try again.</p> : null}
+        {checkEmail ? <p style={{ color: "#00875a" }}>Check your inbox for the sign-in link.</p> : null}
 
-      <form action={signInWithMagicLink}>
-        <label htmlFor="email">Work email</label>
-        <br />
-        <input id="email" name="email" type="email" required />
-        <br />
-        <button type="submit">Send magic link</button>
-      </form>
+        <form action={signInWithMagicLink}>
+          <label htmlFor="email">Work email</label>
+          <br />
+          <input className="ale-input" id="email" name="email" type="email" required />
+          <br />
+          <button className="ale-button" type="submit">
+            Send magic link
+          </button>
+        </form>
 
-      <p style={{ marginTop: 24 }}>
-        Back to <Link href="/">home</Link>.
-      </p>
+        <p style={{ marginTop: 24 }}>
+          Back to <Link href="/">home</Link>.
+        </p>
+      </section>
     </main>
   );
 }

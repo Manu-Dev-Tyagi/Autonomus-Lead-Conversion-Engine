@@ -9,6 +9,8 @@ describe("LlmAgentGatewayAdapter", () => {
     delete process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_MODEL;
     delete process.env.ALE_GEMINI_SCORE_LEAD_TEMPERATURE;
+    delete process.env.ALE_SCORING_USE_POSTGRES_OUTCOMES;
+    delete process.env.ALE_SCORING_HISTORICAL_SEED;
     delete process.env.ALE_LLM_MAX_PROMPT_CHARS;
     delete process.env.ALE_LLM_MAX_ESTIMATED_TOKENS;
     delete process.env.ALE_LLM_USD_PER_1K_TOKENS;
@@ -41,9 +43,12 @@ describe("LlmAgentGatewayAdapter", () => {
       leadId: "x",
     });
 
-    expect(decision.confidence).toBe(0.91);
+    expect(decision.confidence).toBeGreaterThan(0.7);
+    expect(decision.confidence).toBeLessThan(0.91);
     expect(decision.reasoning).toBe("High fit");
     expect(decision.alternatives).toEqual(["wait"]);
+    expect(decision.metadata.scores).toBeDefined();
+    expect(decision.metadata.historicalConversionRate).toBeDefined();
   });
 
   it("falls back safely when model response is non-json", async () => {

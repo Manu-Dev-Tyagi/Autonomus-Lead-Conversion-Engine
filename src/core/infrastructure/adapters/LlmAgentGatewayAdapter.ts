@@ -3,8 +3,18 @@ import {
   AgentGatewayPort,
 } from "@/src/core/application/ports/AgentGatewayPort";
 import { REQUIRED_GEMINI_SPECIALIZED_ACTIONS } from "@/src/core/application/ports/AgentActionScopes";
+import { HistoricalOutcomesReadPort } from "@/src/core/application/ports/HistoricalOutcomesReadPort";
 import { AgentAction } from "@/src/core/domain/agent/AgentAction";
 import { AgentDecision } from "@/src/core/domain/agent/AgentDecision";
+import { InMemoryHistoricalOutcomesReadAdapter } from "@/src/core/infrastructure/adapters/InMemoryHistoricalOutcomesReadAdapter";
+import { PostgresHistoricalOutcomesReadAdapter } from "@/src/core/infrastructure/adapters/PostgresHistoricalOutcomesReadAdapter";
+import { ApolloAdapter } from "@/src/core/infrastructure/adapters/enrichment/ApolloAdapter";
+import { CachedEnrichmentProvider } from "@/src/core/infrastructure/adapters/enrichment/CachedEnrichmentProvider";
+import { ClearbitAdapter } from "@/src/core/infrastructure/adapters/enrichment/ClearbitAdapter";
+import { EnrichmentAgentGatewayAdapter } from "@/src/core/infrastructure/adapters/enrichment/EnrichmentAgentGatewayAdapter";
+import { GeminiInferenceAdapter } from "@/src/core/infrastructure/adapters/enrichment/GeminiInferenceAdapter";
+import { IEnrichmentProvider } from "@/src/core/infrastructure/adapters/enrichment/IEnrichmentProvider";
+import { WebScraperAdapter } from "@/src/core/infrastructure/adapters/enrichment/WebScraperAdapter";
 import { GeminiBookingAgent } from "@/src/core/infrastructure/adapters/gemini/BookingAgent";
 import { GeminiComposerAgent } from "@/src/core/infrastructure/adapters/gemini/ComposerAgent";
 import { GeminiEnrichmentAgent } from "@/src/core/infrastructure/adapters/gemini/EnrichmentAgent";
@@ -15,11 +25,15 @@ import { GeminiGenerationConfig } from "@/src/core/infrastructure/adapters/gemin
 import { GeminiScoringAgent } from "@/src/core/infrastructure/adapters/gemini/GeminiScoringAgent";
 import { GeminiStrategyAgent } from "@/src/core/infrastructure/adapters/gemini/StrategyAgent";
 import { GeminiTimingAgent } from "@/src/core/infrastructure/adapters/gemini/TimingAgent";
+import { ScoringAgentGatewayAdapter } from "@/src/core/infrastructure/adapters/scoring/ScoringAgentGatewayAdapter";
 
 export class LlmAgentGatewayAdapter implements AgentGatewayPort {
   private readonly agents = new Map<AgentAction, AgentGatewayPort>();
+  private readonly historicalOutcomesReader: HistoricalOutcomesReadPort;
 
-  constructor() {
+  constructor(deps?: { historicalOutcomesReader?: HistoricalOutcomesReadPort }) {
+    this.historicalOutcomesReader =
+      deps?.historicalOutcomesReader ?? this.buildHistoricalOutcomesReader();
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {
       return;
@@ -32,11 +46,17 @@ export class LlmAgentGatewayAdapter implements AgentGatewayPort {
     );
     this.agents.set(
       AgentAction.EnrichLead,
-      new GeminiEnrichmentAgent(geminiApiKey, model, this.readGenerationConfig(AgentAction.EnrichLead)),
+      new EnrichmentAgentGatewayAdapter(
+        this.buildEnrichmentProviders(geminiApiKey, model),
+        new GeminiEnrichmentAgent(geminiApiKey, model, this.readGenerationConfig(AgentAction.EnrichLead)),
+      ),
     );
     this.agents.set(
       AgentAction.ScoreLead,
-      new GeminiScoringAgent(geminiApiKey, model, this.readGenerationConfig(AgentAction.ScoreLead)),
+      new ScoringAgentGatewayAdapter(
+        new GeminiScoringAgent(geminiApiKey, model, this.readGenerationConfig(AgentAction.ScoreLead)),
+        this.historicalOutcomesReader,
+      ),
     );
     this.agents.set(
       AgentAction.PlanSequence,
@@ -212,5 +232,49 @@ export class LlmAgentGatewayAdapter implements AgentGatewayPort {
     if (missing.length > 0) {
       throw new Error(`Missing specialized Gemini agents for actions: ${missing.join(", ")}`);
     }
+  }
+
+  private buildEnrichmentProviders(apiKey: string, model: string | undefined): IEnrichmentProvider[] {
+    const providers: IEnrichmentProvider[] = [];
+    const clearbitKey = process.env.CLEARBIT_API_KEY;
+    const apolloKey = process.env.APOLLO_API_KEY;
+    const ttlMs = this.readEnvNumber("ALE_ENRICHMENT_CACHE_TTL_MS") ?? 5 * 60 * 1000;
+
+    if (clearbitKey) {
+      providers.push(new CachedEnrichmentProvider(new ClearbitAdapter(clearbitKey), ttlMs));
+    }
+    if (apolloKey) {
+      providers.push(new CachedEnrichmentProvider(new ApolloAdapter(apolloKey), ttlMs));
+    }
+    providers.push(new CachedEnrichmentProvider(new WebScraperAdapter(), ttlMs));
+    providers.push(
+      new CachedEnrichmentProvider(new GeminiInferenceAdapter(apiKey, model), ttlMs),
+    );
+    return providers;
+  }
+
+  private buildHistoricalOutcomesReader(): HistoricalOutcomesReadPort {
+    const usePostgresReader = process.env.ALE_SCORING_USE_POSTGRES_OUTCOMES === "true";
+    if (usePostgresReader) {
+      return new PostgresHistoricalOutcomesReadAdapter();
+    }
+    const adapter = new InMemoryHistoricalOutcomesReadAdapter();
+    const seed = process.env.ALE_SCORING_HISTORICAL_SEED;
+    if (!seed) {
+      return adapter;
+    }
+    try {
+      const parsed = JSON.parse(seed) as Array<{
+        tenantId: string;
+        segmentKey: string;
+        conversionRate: number;
+      }>;
+      for (const item of parsed) {
+        adapter.upsert(item);
+      }
+    } catch {
+      // Ignore malformed seed values and continue with defaults.
+    }
+    return adapter;
   }
 }

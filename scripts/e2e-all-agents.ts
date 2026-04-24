@@ -117,6 +117,13 @@ function simulatedDecision(action: AgentAction): AgentDecision {
       alternatives: ["request_more_times"],
       metadata: { meetingId: "meeting-e2e-all-01" },
     },
+    [AgentAction.OrchestrateWorkflow]: {
+      action,
+      confidence: 0.8,
+      reasoning: "Workflow orchestration selected the expected next action path.",
+      alternatives: [],
+      metadata: { nextAction: AgentAction.PlanSequence },
+    },
   };
   return map[action];
 }

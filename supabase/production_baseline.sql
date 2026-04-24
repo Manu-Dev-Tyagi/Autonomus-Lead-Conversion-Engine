@@ -33,6 +33,46 @@ create table if not exists public.tenant_memberships (
   unique (tenant_id, user_id)
 );
 
+create table if not exists public.workspaces (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null unique references public.tenants(id) on delete cascade,
+  name text not null,
+  slug text not null unique,
+  status text not null default 'provisioning' check (status in ('provisioning', 'active', 'suspended', 'archived', 'failed')),
+  industry text,
+  company_size text,
+  owner_user_id uuid not null references auth.users(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.workspace_configs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  version int not null,
+  config jsonb not null default '{}'::jsonb,
+  is_active boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists workspace_configs_active_unique
+  on public.workspace_configs(workspace_id)
+  where is_active = true;
+
+create table if not exists public.workspace_provisioning_jobs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  idempotency_key text not null unique,
+  status text not null check (status in ('pending', 'running', 'completed', 'failed')),
+  step text not null,
+  attempt_count int not null default 0,
+  last_error text,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.todos (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -151,6 +191,14 @@ as $$
   )
 $$;
 
+create or replace function private.is_platform_admin()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce(auth.jwt() -> 'app_metadata' ->> 'platform_role', '') = 'platform_admin'
+$$;
+
 alter table public.tenants enable row level security;
 alter table public.tenant_memberships enable row level security;
 alter table public.todos enable row level security;
@@ -161,6 +209,9 @@ alter table public.idempotency_keys enable row level security;
 alter table public.agent_decisions enable row level security;
 alter table public.pipeline_read_models enable row level security;
 alter table public.tenant_ops_metrics enable row level security;
+alter table public.workspaces enable row level security;
+alter table public.workspace_configs enable row level security;
+alter table public.workspace_provisioning_jobs enable row level security;
 
 drop policy if exists "Tenant members can read tenant row" on public.tenants;
 create policy "Tenant members can read tenant row"
@@ -306,3 +357,73 @@ using (
   tenant_id = private.current_tenant_id()
   and private.is_tenant_member(tenant_id)
 );
+
+drop policy if exists "Platform admins can read all workspaces" on public.workspaces;
+create policy "Platform admins can read all workspaces"
+on public.workspaces
+for select
+to authenticated
+using (private.is_platform_admin());
+
+drop policy if exists "Tenant members can read own workspace" on public.workspaces;
+create policy "Tenant members can read own workspace"
+on public.workspaces
+for select
+to authenticated
+using (
+  tenant_id = private.current_tenant_id()
+  and private.is_tenant_member(tenant_id)
+);
+
+drop policy if exists "Platform admins can manage workspaces" on public.workspaces;
+create policy "Platform admins can manage workspaces"
+on public.workspaces
+for all
+to authenticated
+using (private.is_platform_admin())
+with check (private.is_platform_admin());
+
+drop policy if exists "Platform admins can read workspace configs" on public.workspace_configs;
+create policy "Platform admins can read workspace configs"
+on public.workspace_configs
+for select
+to authenticated
+using (private.is_platform_admin());
+
+drop policy if exists "Tenant members can read active workspace config" on public.workspace_configs;
+create policy "Tenant members can read active workspace config"
+on public.workspace_configs
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.workspaces w
+    where w.id = workspace_configs.workspace_id
+      and w.tenant_id = private.current_tenant_id()
+      and private.is_tenant_member(w.tenant_id)
+  )
+);
+
+drop policy if exists "Platform admins can manage workspace configs" on public.workspace_configs;
+create policy "Platform admins can manage workspace configs"
+on public.workspace_configs
+for all
+to authenticated
+using (private.is_platform_admin())
+with check (private.is_platform_admin());
+
+drop policy if exists "Platform admins can read provisioning jobs" on public.workspace_provisioning_jobs;
+create policy "Platform admins can read provisioning jobs"
+on public.workspace_provisioning_jobs
+for select
+to authenticated
+using (private.is_platform_admin());
+
+drop policy if exists "Platform admins can manage provisioning jobs" on public.workspace_provisioning_jobs;
+create policy "Platform admins can manage provisioning jobs"
+on public.workspace_provisioning_jobs
+for all
+to authenticated
+using (private.is_platform_admin())
+with check (private.is_platform_admin());

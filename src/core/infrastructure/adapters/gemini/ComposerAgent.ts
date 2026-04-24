@@ -13,9 +13,13 @@ export class GeminiComposerAgent extends BaseGeminiAgent {
   }
 
   protected buildPrompt(context: Record<string, unknown>): string {
+    const templateCandidates = Array.isArray(context.templateCandidates)
+      ? context.templateCandidates
+      : [];
     return [
       "Compose a personalized outreach email for this lead.",
       `Context: ${JSON.stringify(context)}`,
+      `Template candidates: ${JSON.stringify(templateCandidates)}`,
       "Constraints:",
       "- Keep body <= 150 words",
       "- Include exactly one CTA",

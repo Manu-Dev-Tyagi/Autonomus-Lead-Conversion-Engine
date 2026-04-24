@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "outreach": {
+    "channels": ["email"],
+    "dailySendLimit": 120,
+    "approvalThreshold": 0.85,
+    "timezone": "UTC"
+  },
+  "scoring": {
+    "weights": {
+      "icpFit": 0.3,
+      "intentSignals": 0.4,
+      "dataQuality": 0.2,
+      "timing": 0.1
+    }
+  },
+  "compliance": {
+    "retentionDays": 365,
+    "requireHumanApprovalForLowConfidence": true
+  }
+}

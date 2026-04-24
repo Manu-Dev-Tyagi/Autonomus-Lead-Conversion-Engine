@@ -16,6 +16,8 @@ import { PolicyEnginePort } from "@/src/core/application/ports/PolicyEnginePort"
 import { ResponseInterpreterPort } from "@/src/core/application/ports/ResponseInterpreterPort";
 import { SendTimingPort } from "@/src/core/application/ports/SendTimingPort";
 import { StrategyPlannerPort } from "@/src/core/application/ports/StrategyPlannerPort";
+import { TemplateLibraryPort } from "@/src/core/application/ports/TemplateLibraryPort";
+import { TemplatePerformancePort } from "@/src/core/application/ports/TemplatePerformancePort";
 import { ExecuteOutreachBookingLoopUseCase } from "@/src/core/application/use-cases/ExecuteOutreachBookingLoopUseCase";
 import { AgentDecision } from "@/src/core/domain/agent/AgentDecision";
 import { ResponseIntent } from "@/src/core/domain/interaction/ResponseIntent";
@@ -75,6 +77,25 @@ const composer: MessageComposerPort = {
   async compose() {
     return { subject: "Hello", body: "Can we talk?" };
   },
+};
+const templateLibrary: TemplateLibraryPort = {
+  async getBestPerforming() {
+    return [
+      {
+        id: "tpl-1",
+        name: "default-template",
+        segment: "default",
+        sequenceStep: 1,
+        subjectTemplate: "Hi {{firstName}}",
+        bodyTemplate: "Can we chat?",
+        replyRate: 0.2,
+        bookingRate: 0.1,
+      },
+    ];
+  },
+};
+const templatePerformance: TemplatePerformancePort = {
+  async recordOutcome() {},
 };
 const timing: SendTimingPort = {
   async nextSendAt() {
@@ -149,6 +170,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGateNoApproval,
@@ -187,6 +210,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGateNoApproval,
@@ -235,6 +260,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGate,
@@ -273,6 +300,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGateNoApproval,
@@ -311,6 +340,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGateNoApproval,
@@ -354,6 +385,8 @@ describe("ExecuteOutreachBookingLoopUseCase", () => {
       new InMemoryEventBus(),
       new InMemoryIdempotency(),
       strategyPlanner,
+      templateLibrary,
+      templatePerformance,
       composer,
       timing,
       confidenceGate,

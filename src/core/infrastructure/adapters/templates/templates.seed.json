@@ -1,0 +1,37 @@
+[
+  {
+    "name": "SaaS VP Engineering Intro",
+    "segment": "saas_vp_engineering",
+    "sequenceStep": 1,
+    "subjectTemplate": "Quick idea for {{company}} growth",
+    "bodyTemplate": "Hi {{firstName}}, noticed {{company}} is scaling. Open to a short chat on improving {{painPoint}}?"
+  },
+  {
+    "name": "SaaS VP Engineering Follow-up",
+    "segment": "saas_vp_engineering",
+    "sequenceStep": 2,
+    "subjectTemplate": "Re: improving {{company}} pipeline",
+    "bodyTemplate": "Sharing one quick thought based on your stack. Should I send a concise breakdown?"
+  },
+  {
+    "name": "FinTech CTO Intro",
+    "segment": "fintech_cto",
+    "sequenceStep": 1,
+    "subjectTemplate": "{{company}} and secure automation",
+    "bodyTemplate": "Hi {{firstName}}, teams like yours use our approach to improve throughput while keeping compliance guardrails."
+  },
+  {
+    "name": "FinTech CTO Objection Handler",
+    "segment": "fintech_cto",
+    "sequenceStep": 3,
+    "subjectTemplate": "On timing and rollout risk",
+    "bodyTemplate": "Totally fair on timing. We usually start with a low-risk pilot and clear rollback criteria."
+  },
+  {
+    "name": "Mid-Market Ops Intro",
+    "segment": "midmarket_ops",
+    "sequenceStep": 1,
+    "subjectTemplate": "Reducing manual outreach overhead",
+    "bodyTemplate": "Hi {{firstName}}, can I share how similar teams reduced manual follow-up while increasing meetings booked?"
+  }
+]
