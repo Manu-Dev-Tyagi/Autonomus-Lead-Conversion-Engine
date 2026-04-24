@@ -1,5 +1,12 @@
 import { AgentDecisionRepositoryPort } from "@/src/core/application/ports/AgentDecisionRepositoryPort";
-import { AgentGatewayPort } from "@/src/core/application/ports/AgentGatewayPort";
+import {
+  AgentContextByAction,
+  LifecycleAgentGatewayPort,
+} from "@/src/core/application/ports/AgentGatewayPort";
+import {
+  assertActionOwner,
+  LifecycleAgentActions,
+} from "@/src/core/application/ports/AgentActionScopes";
 import { DeadLetterQueuePort } from "@/src/core/application/ports/DeadLetterQueuePort";
 import { EventBusPort } from "@/src/core/application/ports/EventBusPort";
 import { IdempotencyPort, IdempotencyResult } from "@/src/core/application/ports/IdempotencyPort";
@@ -25,7 +32,7 @@ export class OrchestrateLeadLifecycleUseCase {
   constructor(
     private readonly leadRepository: LeadRepositoryPort,
     private readonly eventBus: EventBusPort,
-    private readonly agentGateway: AgentGatewayPort,
+    private readonly agentGateway: LifecycleAgentGatewayPort,
     private readonly decisionRepository: AgentDecisionRepositoryPort,
     private readonly idempotency: IdempotencyPort,
     private readonly retryExecutor: RetryExecutor,
@@ -33,7 +40,10 @@ export class OrchestrateLeadLifecycleUseCase {
     private readonly pipelineReadModel: PipelineReadModelPort,
     private readonly observability: ObservabilityPort,
     private readonly tenantOpsMetrics: TenantOpsMetricsPort,
-  ) {}
+  ) {
+    assertActionOwner(AgentAction.EnrichLead, "lifecycle");
+    assertActionOwner(AgentAction.ScoreLead, "lifecycle");
+  }
 
   async execute(command: OrchestrateLeadLifecycleCommand): Promise<IdempotencyResult> {
     const startedAtMs = Date.now();
@@ -172,11 +182,11 @@ export class OrchestrateLeadLifecycleUseCase {
 
   private async runAgentWithRetry(input: {
     stage: "enrichment" | "scoring";
-    action: AgentAction;
+    action: LifecycleAgentActions;
     tenantId: string;
     leadId: string;
     idempotencyKey: string;
-    context: Record<string, unknown>;
+    context: AgentContextByAction[LifecycleAgentActions] & Record<string, unknown>;
   }) {
     try {
       return await this.retryExecutor.run(

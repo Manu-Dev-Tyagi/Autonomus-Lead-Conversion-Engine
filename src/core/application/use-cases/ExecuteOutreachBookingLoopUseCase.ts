@@ -1,5 +1,6 @@
 import { AgentDecisionRepositoryPort } from "@/src/core/application/ports/AgentDecisionRepositoryPort";
 import { BookingCoordinatorPort } from "@/src/core/application/ports/BookingCoordinatorPort";
+import { assertActionOwner, OutreachAgentActions } from "@/src/core/application/ports/AgentActionScopes";
 import { ConfidenceGatePort } from "@/src/core/application/ports/ConfidenceGatePort";
 import { EventBusPort } from "@/src/core/application/ports/EventBusPort";
 import { HumanApprovalPort } from "@/src/core/application/ports/HumanApprovalPort";
@@ -51,7 +52,19 @@ export class ExecuteOutreachBookingLoopUseCase {
     private readonly kpi: KpiTrackerPort,
     private readonly decisions: AgentDecisionRepositoryPort,
     private readonly observability: ObservabilityPort,
-  ) {}
+  ) {
+    const outreachActions: OutreachAgentActions[] = [
+      AgentAction.PlanSequence,
+      AgentAction.ComposeMessage,
+      AgentAction.OptimizeTiming,
+      AgentAction.InterpretResponse,
+      AgentAction.SendEmail,
+      AgentAction.ScheduleMeeting,
+    ];
+    for (const action of outreachActions) {
+      assertActionOwner(action, "outreach");
+    }
+  }
 
   async execute(
     command: ExecuteOutreachBookingLoopCommand,
@@ -321,7 +334,7 @@ export class ExecuteOutreachBookingLoopUseCase {
   private async saveDecision(
     tenantId: string,
     leadId: string,
-    decision: AgentDecision,
+    decision: AgentDecision & { action: OutreachAgentActions },
   ): Promise<void> {
     await this.decisions.save({
       tenantId,

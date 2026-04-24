@@ -10,4 +10,5 @@ export enum AgentAction {
   InterpretResponse = "INTERPRET_RESPONSE",
   SendEmail = "SEND_EMAIL",
   ScheduleMeeting = "SCHEDULE_MEETING",
+  OrchestrateWorkflow = "ORCHESTRATE_WORKFLOW",
 }
