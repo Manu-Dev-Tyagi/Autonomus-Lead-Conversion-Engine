@@ -1,0 +1,14 @@
+-- Optional dev seed (requires authenticated users and memberships first).
+-- Replace the UUIDs before running.
+
+-- Example:
+-- insert into public.tenants (id, name, slug)
+-- values ('11111111-1111-1111-1111-111111111111', 'Demo Tenant', 'demo-tenant')
+-- on conflict (slug) do nothing;
+--
+-- insert into public.tenant_memberships (tenant_id, user_id, role)
+-- values ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', 'owner')
+-- on conflict (tenant_id, user_id) do nothing;
+--
+-- insert into public.todos (tenant_id, created_by, name)
+-- values ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', 'First secure todo');

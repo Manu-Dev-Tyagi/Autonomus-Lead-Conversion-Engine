@@ -1,0 +1,13 @@
+export enum AgentAction {
+  CreateLead = "CREATE_LEAD",
+  EnrichLead = "ENRICH_LEAD",
+  ScoreLead = "SCORE_LEAD",
+  QualifyLead = "QUALIFY_LEAD",
+  DisqualifyLead = "DISQUALIFY_LEAD",
+  PlanSequence = "PLAN_SEQUENCE",
+  ComposeMessage = "COMPOSE_MESSAGE",
+  OptimizeTiming = "OPTIMIZE_TIMING",
+  InterpretResponse = "INTERPRET_RESPONSE",
+  SendEmail = "SEND_EMAIL",
+  ScheduleMeeting = "SCHEDULE_MEETING",
+}
