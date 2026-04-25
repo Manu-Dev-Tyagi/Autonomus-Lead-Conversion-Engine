@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("leads")
-    .select("id, tenant_id, email, state, score, created_at, updated_at", { count: "exact" })
+    .select("*", { count: "exact" })
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -61,7 +61,8 @@ export async function GET(request: NextRequest) {
     query = query.eq("state", state);
   }
   if (search) {
-    query = query.ilike("email", `%${search}%`);
+    // Search across email, name, and company
+    query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,company.ilike.%${search}%`);
   }
 
   const from = (page - 1) * pageSize;
@@ -72,12 +73,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: `Failed to fetch leads: ${error.message}` }, { status: 500 });
   }
 
-  const rows = (data ?? []) as LeadRow[];
-  const response: ListLeadsResponse = {
+  const rows = (data ?? []) as any[];
+  return NextResponse.json({
     data: rows.map((row) => ({
       id: row.id,
       tenantId: row.tenant_id,
       email: row.email,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      company: row.company,
+      jobTitle: row.job_title,
+      industry: row.industry,
+      companySize: row.company_size,
+      location: row.location,
+      source: row.source,
       state: row.state,
       score: row.score,
       createdAt: row.created_at,
@@ -89,9 +98,7 @@ export async function GET(request: NextRequest) {
       total: count ?? 0,
       totalPages: Math.max(1, Math.ceil((count ?? 0) / pageSize)),
     },
-  };
-
-  return NextResponse.json(response);
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -110,20 +117,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing tenant claim." }, { status: 403 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { email?: unknown };
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!isValidEmail(email)) {
     return NextResponse.json({ error: "Invalid email." }, { status: 400 });
   }
 
+  // Build insert row with all available fields
+  const insertRow: Record<string, unknown> = {
+    tenant_id: tenantId,
+    email,
+    state: "new",
+  };
+  
+  // Optional rich fields
+  if (typeof body.firstName === "string" && body.firstName.trim()) insertRow.first_name = body.firstName.trim();
+  if (typeof body.lastName === "string" && body.lastName.trim()) insertRow.last_name = body.lastName.trim();
+  if (typeof body.company === "string" && body.company.trim()) insertRow.company = body.company.trim();
+  if (typeof body.jobTitle === "string" && body.jobTitle.trim()) insertRow.job_title = body.jobTitle.trim();
+  if (typeof body.phone === "string" && body.phone.trim()) insertRow.phone = body.phone.trim();
+  if (typeof body.linkedinUrl === "string" && body.linkedinUrl.trim()) insertRow.linkedin_url = body.linkedinUrl.trim();
+  if (typeof body.website === "string" && body.website.trim()) insertRow.website = body.website.trim();
+  if (typeof body.source === "string" && body.source.trim()) insertRow.source = body.source.trim();
+  if (typeof body.industry === "string" && body.industry.trim()) insertRow.industry = body.industry.trim();
+  if (typeof body.companySize === "string" && body.companySize.trim()) insertRow.company_size = body.companySize.trim();
+  if (typeof body.location === "string" && body.location.trim()) insertRow.location = body.location.trim();
+  if (typeof body.notes === "string" && body.notes.trim()) insertRow.notes = body.notes.trim();
+
   const { data, error } = await supabase
     .from("leads")
-    .insert({
-      tenant_id: tenantId,
-      email,
-      state: "new",
-    })
-    .select("id, tenant_id, email, state, score, created_at, updated_at")
+    .insert(insertRow)
+    .select("*")
     .single();
 
   if (error) {
@@ -131,19 +155,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Failed to create lead: ${error.message}` }, { status });
   }
 
-  const row = data as LeadRow;
-  const response: CreateLeadResponse = {
-    lead: {
-      id: row.id,
-      tenantId: row.tenant_id,
-      email: row.email,
-      state: row.state,
-      score: row.score,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+  // AUTO-TRIGGER: Fire the AI processing pipeline in the background
+  const origin = request.headers.get("origin") || request.headers.get("host") || "localhost:3000";
+  const protocol = request.headers.get("x-forwarded-proto") || "http";
+  const baseUrl = origin.startsWith("http") ? origin : `${protocol}://${origin}`;
+  
+  fetch(`${baseUrl}/api/leads/${data.id}/process`, {
+    method: "POST",
+    headers: {
+      cookie: request.headers.get("cookie") || "",
     },
-  };
-  return NextResponse.json(response, { status: 201 });
+  }).catch((err) => {
+    console.error(`[AutoProcess] Failed to trigger pipeline for lead ${data.id}:`, err);
+  });
+
+  return NextResponse.json({
+    lead: {
+      id: data.id,
+      tenantId: data.tenant_id,
+      email: data.email,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      company: data.company,
+      jobTitle: data.job_title,
+      state: data.state,
+      score: data.score,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    },
+    processing: true,
+  }, { status: 201 });
 }
 
 function clampNumber(value: string | null, fallback: number, max: number): number {

@@ -27,6 +27,7 @@ export interface CreateLeadRequest {
 
 export interface CreateLeadResponse {
   lead: LeadListItem;
+  processing?: boolean;
 }
 
 export interface UpdateLeadRequest {

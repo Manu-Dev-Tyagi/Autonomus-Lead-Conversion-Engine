@@ -66,7 +66,7 @@ export async function GET(
 
   const { data: leadData, error: leadError } = await supabase
     .from("leads")
-    .select("id, tenant_id, email, state, score, created_at, updated_at")
+    .select("*")
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
@@ -88,7 +88,7 @@ export async function GET(
       .limit(25),
     supabase
       .from("agent_decisions")
-      .select("id, action, confidence, reasoning, occurred_at")
+      .select("id, action, confidence, reasoning, metadata, occurred_at")
       .eq("tenant_id", tenantId)
       .eq("lead_id", id)
       .order("occurred_at", { ascending: false })
@@ -108,20 +108,11 @@ export async function GET(
     );
   }
 
-  const lead = leadData as LeadRow;
   const interactions = (interactionsRes.data ?? []) as InteractionRow[];
-  const decisions = (decisionsRes.data ?? []) as AgentDecisionRow[];
+  const decisions = (decisionsRes.data ?? []) as any[];
 
-  const response: LeadDetailResponse = {
-    lead: {
-      id: lead.id,
-      tenantId: lead.tenant_id,
-      email: lead.email,
-      state: lead.state,
-      score: lead.score,
-      createdAt: lead.created_at,
-      updatedAt: lead.updated_at,
-    },
+  return NextResponse.json({
+    lead: leadData,
     interactions: interactions.map((row) => ({
       id: row.id,
       type: row.type,
@@ -134,10 +125,10 @@ export async function GET(
       action: row.action,
       confidence: row.confidence,
       reasoning: row.reasoning,
-      occurredAt: row.occurred_at,
+      metadata: row.metadata || {},
+      occurred_at: row.occurred_at,
     })),
-  };
-  return NextResponse.json(response);
+  });
 }
 
 export async function PATCH(

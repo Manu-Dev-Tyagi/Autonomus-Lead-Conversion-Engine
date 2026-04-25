@@ -5,7 +5,7 @@ export class Container {
 
   register<T>(token: IoCToken, instance: T): void {
     if (this.services.has(token)) {
-      throw new Error("Token already registered.");
+      return; // Already registered — skip silently (safe for serverless re-entry)
     }
     this.services.set(token, instance);
   }
@@ -15,6 +15,10 @@ export class Container {
       throw new Error("Token not registered.");
     }
     return this.services.get(token) as T;
+  }
+
+  has(token: IoCToken): boolean {
+    return this.services.has(token);
   }
 }
 
