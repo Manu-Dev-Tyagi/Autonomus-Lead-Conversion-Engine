@@ -8,6 +8,7 @@ import { AgentGatewayPort } from "@/src/core/application/ports/AgentGatewayPort"
 import { BookingCoordinatorPort } from "@/src/core/application/ports/BookingCoordinatorPort";
 import { ConfidenceGatePort } from "@/src/core/application/ports/ConfidenceGatePort";
 import { DeadLetterQueuePort } from "@/src/core/application/ports/DeadLetterQueuePort";
+import { EmailDeliveryPort } from "@/src/core/application/ports/EmailDeliveryPort";
 import { EventBusPort } from "@/src/core/application/ports/EventBusPort";
 import { HumanApprovalPort } from "@/src/core/application/ports/HumanApprovalPort";
 import { IdempotencyPort, IdempotencyResult } from "@/src/core/application/ports/IdempotencyPort";
@@ -272,6 +273,7 @@ async function main() {
     kpi,
     decisionRepo,
     obs,
+    { sendEmail: async () => ({ messageId: "e2e-test" }) } as EmailDeliveryPort,
   );
 
   const outreachResult = await outreach.execute({

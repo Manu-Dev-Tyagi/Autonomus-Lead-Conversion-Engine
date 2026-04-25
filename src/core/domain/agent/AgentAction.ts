@@ -11,4 +11,5 @@ export enum AgentAction {
   SendEmail = "SEND_EMAIL",
   ScheduleMeeting = "SCHEDULE_MEETING",
   OrchestrateWorkflow = "ORCHESTRATE_WORKFLOW",
+  UpdateStrategy = "UPDATE_STRATEGY",
 }

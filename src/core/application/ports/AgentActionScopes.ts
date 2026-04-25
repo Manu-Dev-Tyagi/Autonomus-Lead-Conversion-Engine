@@ -33,6 +33,7 @@ export const REQUIRED_GEMINI_SPECIALIZED_ACTIONS: AgentAction[] = [
   AgentAction.InterpretResponse,
   AgentAction.ScheduleMeeting,
   AgentAction.OrchestrateWorkflow,
+  AgentAction.UpdateStrategy,
 ];
 
 export type AgentActionOwner = "lifecycle" | "outreach" | "other";
@@ -50,6 +51,7 @@ export const AGENT_ACTION_OWNER_MAP: Record<AgentAction, AgentActionOwner> = {
   [AgentAction.SendEmail]: "outreach",
   [AgentAction.ScheduleMeeting]: "outreach",
   [AgentAction.OrchestrateWorkflow]: "other",
+  [AgentAction.UpdateStrategy]: "other",
 };
 
 export function assertActionOwner(

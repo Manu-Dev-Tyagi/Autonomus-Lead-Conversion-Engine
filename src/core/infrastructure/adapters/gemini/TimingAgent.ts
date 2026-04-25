@@ -14,10 +14,33 @@ export class GeminiTimingAgent extends BaseGeminiAgent {
 
   protected buildPrompt(context: Record<string, unknown>): string {
     return [
-      "Recommend optimal send timing using timezone and engagement cues.",
-      `Context: ${JSON.stringify(context)}`,
-      "Prefer business hours and suggest one primary scheduled timestamp.",
-      "Output JSON with: confidence, reasoning, alternatives, metadata { scheduledAt, timezone }",
+      "YOU ARE THE OUTREACH TIMING OPTIMIZOR FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
+      "MISSION: CALCULATE THE HIGHEST-PROBABILITY SEND TIME BASED ON TIMEZONE, ROLE, AND HISTORICAL ENGAGEMENT.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. TIMEZONE AWARENESS: ALWAYS SEND DURING THE LEAD'S BUSINESS HOURS (9 AM - 5 PM).",
+      "2. ROLE BEHAVIOR: EXECUTIVE TITLES OFTEN CHECK EMAILS EARLY (8 AM) OR LATE (6 PM).",
+      "3. AVOID PEAKS: DON'T SEND AT THE EXACT START OF THE HOUR (e.g., 9:00 AM) TO AVOID BULK FILTERS.",
+      "4. HISTORICAL CUES: IF THE LEAD REPLIED PREVIOUSLY AT A CERTAIN TIME, USE THAT WINDOW.",
+      "",
+      "--- CONTEXT ---",
+      `LEAD_PROFILE: ${JSON.stringify(context.lead ?? {})}`,
+      `LEAD_TIMEZONE: ${context.timezone || "UTC"}`,
+      `CURRENT_TIME_UTC: ${new Date().toISOString()}`,
+      `HISTORICAL_ENGAGEMENTS: ${JSON.stringify(context.history ?? [])}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "logic for selecting this specific window",',
+      '  "alternatives": ["ISO_TIMESTAMP_UTC"],',
+      '  "metadata": {',
+      '    "scheduledAt": "ISO_TIMESTAMP_UTC",',
+      '    "timezone": "IANA_TimeZone_ID",',
+      '    "localTime": "readable local time",',
+      '    "isNextDay": boolean',
+      "  }",
+      "}",
     ].join("\n");
   }
 

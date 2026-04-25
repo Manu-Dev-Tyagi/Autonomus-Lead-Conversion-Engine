@@ -34,6 +34,36 @@ export async function signInWithMagicLink(formData: FormData) {
   redirect("/auth/sign-in?check_email=1");
 }
 
+export async function signUpWithMagicLink(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  const fullName = String(formData.get("fullName") ?? "").trim();
+
+  if (!email) {
+    redirect("/auth/sign-up?error=missing_email");
+  }
+
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+      data: {
+        full_name: fullName,
+        onboarding_pending: true,
+      },
+    },
+  });
+
+  if (error) {
+    redirect("/auth/sign-up?error=auth_failed");
+  }
+
+  redirect("/auth/sign-up?check_email=1");
+}
+
 export async function signOut() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);

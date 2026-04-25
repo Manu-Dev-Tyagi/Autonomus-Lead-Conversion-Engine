@@ -73,6 +73,12 @@ export type AgentContextByAction = {
     currentState?: string;
     availableAgents?: string[];
   };
+  [AgentAction.UpdateStrategy]: {
+    tenantId?: string;
+    outcomes?: any[];
+    currentStrategy?: any;
+    metrics?: any;
+  };
 };
 
 export type ExecuteAgentFn<TAllowedActions extends AgentAction> = <TAction extends TAllowedActions>(

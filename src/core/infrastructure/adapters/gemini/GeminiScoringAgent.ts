@@ -14,20 +14,35 @@ export class GeminiScoringAgent extends BaseGeminiAgent implements AgentGatewayP
   }
 
   protected buildPrompt(context: Record<string, unknown>): string {
-    const leadData = context.lead ?? context;
-    const icp = context.tenantConfig ?? {};
-    const historical = context.historicalPatterns ?? [];
     return [
-      "Analyze this lead for qualification.",
-      `Lead Data: ${JSON.stringify(leadData)}`,
-      `Our ICP: ${JSON.stringify(icp)}`,
-      `Historical successful conversions: ${JSON.stringify(historical)}`,
-      "Task:",
-      "1. Rate ICP fit (0-100)",
-      "2. Identify intent signals",
-      "3. Predict conversion likelihood",
-      "4. Explain reasoning in 1-2 sentences",
-      "Output JSON with: confidence, reasoning, score, breakdown, alternatives, metadata",
+      "YOU ARE THE LEAD SCORING & QUALIFICATION AGENT FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
+      "MISSION: CALCULATE A HIGH-PRECISION QUALIFICATION SCORE (0-100) BASED ON ICP FIT AND INTENT.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. ICP ALIGNMENT: HOW WELL DOES THE LEAD MATCH THE IDEAL CUSTOMER PROFILE?",
+      "2. INTENT SIGNALS: WEIGHT BEHAVIORAL DATA (visits, downloads, replies) HEAVILY.",
+      "3. PATTERN MATCHING: ANALYZE HISTORICAL CONVERSIONS FOR SIMILARITIES.",
+      "4. RISK ASSESSMENT: IDENTIFY RED FLAGS (competitors, fake data).",
+      "",
+      "--- CONTEXT ---",
+      `LEAD_DATA: ${JSON.stringify(context.lead ?? {})}`,
+      `IDEAL_CUSTOMER_PROFILE: ${JSON.stringify(context.tenantConfig ?? {})}`,
+      `HISTORICAL_SUCCESS_PATTERNS: ${JSON.stringify(context.historicalPatterns ?? [])}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "multi-step scoring breakdown",',
+      '  "score": integer (0 to 100),',
+      '  "breakdown": {',
+      '    "firmographicScore": integer,',
+      '    "personaScore": integer,',
+      '    "intentScore": integer,',
+      '    "conversionProbability": float',
+      '  },',
+      '  "qualitativeAnalysis": "detailed notes on lead quality",',
+      '  "metadata": { "qualificationRecommendation": "QUALIFY" | "DISQUALIFY" | "REVIEW" }',
+      "}",
     ].join("\n");
   }
 

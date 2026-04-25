@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ReactNode } from "react";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 const NAV_ITEMS = [
   { href: "/", label: "Overview" },
@@ -7,9 +8,12 @@ const NAV_ITEMS = [
   { href: "/campaigns", label: "Campaigns" },
   { href: "/approvals", label: "Approvals" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/settings", label: "Settings" },
 ];
 const ADMIN_NAV_ITEMS = [
+  { href: "/admin/activity", label: "Live Activity" },
   { href: "/admin/workspaces", label: "Workspaces" },
+  { href: "/admin/monitoring", label: "Monitoring" },
   { href: "/admin/operations", label: "Operations" },
   { href: "/admin/tenant-claims", label: "Tenant Admin" },
 ];
@@ -28,9 +32,9 @@ export function AppShell(props: {
     <div className="ale-shell">
       <aside className="ale-sidebar">
         <h2 className="ale-sidebar-title">ALE</h2>
-        <p className="ale-muted" style={{ marginTop: 0 }}>
-          Lead Conversion OS
-        </p>
+        <div style={{ padding: "0 16px 20px" }}>
+          <WorkspaceSwitcher />
+        </div>
         <nav className="ale-nav">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className="ale-nav-link">

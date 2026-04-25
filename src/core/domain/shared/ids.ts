@@ -23,3 +23,21 @@ export class CampaignId extends EntityId {
     super(value);
   }
 }
+
+export class WorkspaceId extends EntityId {
+  constructor(value: string) {
+    super(value);
+  }
+}
+
+export class WorkspaceConfigId extends EntityId {
+  constructor(value: string) {
+    super(value);
+  }
+}
+
+export class ProvisioningJobId extends EntityId {
+  constructor(value: string) {
+    super(value);
+  }
+}

@@ -124,6 +124,13 @@ function simulatedDecision(action: AgentAction): AgentDecision {
       alternatives: [],
       metadata: { nextAction: AgentAction.PlanSequence },
     },
+    [AgentAction.UpdateStrategy]: {
+      action,
+      confidence: 0.95,
+      reasoning: "Updated tenant strategy based on recent performance data.",
+      alternatives: [],
+      metadata: {},
+    },
   };
   return map[action];
 }

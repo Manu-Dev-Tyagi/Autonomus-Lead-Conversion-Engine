@@ -19,6 +19,7 @@ import { GeminiBookingAgent } from "@/src/core/infrastructure/adapters/gemini/Bo
 import { GeminiComposerAgent } from "@/src/core/infrastructure/adapters/gemini/ComposerAgent";
 import { GeminiEnrichmentAgent } from "@/src/core/infrastructure/adapters/gemini/EnrichmentAgent";
 import { GeminiIntakeAgent } from "@/src/core/infrastructure/adapters/gemini/IntakeAgent";
+import { GeminiLearningAgent } from "@/src/core/infrastructure/adapters/gemini/LearningAgent";
 import { GeminiOrchestratorAgent } from "@/src/core/infrastructure/adapters/gemini/OrchestratorAgent";
 import { GeminiResponseAgent } from "@/src/core/infrastructure/adapters/gemini/ResponseAgent";
 import { GeminiGenerationConfig } from "@/src/core/infrastructure/adapters/gemini/BaseGeminiAgent";
@@ -86,6 +87,14 @@ export class LlmAgentGatewayAdapter implements AgentGatewayPort {
         this.readGenerationConfig(AgentAction.OrchestrateWorkflow),
       ),
     );
+    this.agents.set(
+      AgentAction.UpdateStrategy,
+      new GeminiLearningAgent(
+        geminiApiKey,
+        model,
+        this.readGenerationConfig(AgentAction.UpdateStrategy),
+      ),
+    );
     this.assertRequiredSpecializedActions();
   }
 
@@ -101,7 +110,7 @@ export class LlmAgentGatewayAdapter implements AgentGatewayPort {
     const specializedAgent = this.agents.get(action);
     if (specializedAgent) {
       try {
-        return await specializedAgent.execute(action, context);
+        return await specializedAgent.execute(action, context as any);
       } catch (error) {
         if (
           error instanceof Error &&

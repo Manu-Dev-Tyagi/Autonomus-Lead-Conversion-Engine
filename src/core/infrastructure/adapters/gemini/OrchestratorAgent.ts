@@ -14,10 +14,32 @@ export class GeminiOrchestratorAgent extends BaseGeminiAgent {
 
   protected buildPrompt(context: Record<string, unknown>): string {
     return [
-      "Coordinate the next best workflow step across available specialist agents.",
-      `Context: ${JSON.stringify(context)}`,
-      "Select one next agent and explain why to keep flow deterministic.",
-      "Output JSON with: confidence, reasoning, alternatives, metadata { nextAgent, rationale }",
+      "YOU ARE THE MASTER WORKFLOW ORCHESTRATOR FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
+      "MISSION: DETERMINE THE OPTIMAL NEXT STEP IN THE LEAD LIFECYCLE BY COORDINATING SPECIALIST AGENTS.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. STATE AWARENESS: NAVIGATE THE TRANSITION FROM INTAKE -> ENRICHED -> SCORED -> OUTREACH -> BOOKED.",
+      "2. GATEKEEPING: ENSURE A LEAD IS FULLY QUALIFIED BEFORE TRIGGERING EXPENSIVE OUTREACH AGENTS.",
+      "3. ERROR RECOVERY: IF AN AGENT FAILS (low confidence), TRIGGER A RETRY OR HUMAN INTERVENTION.",
+      "4. PRIORITY DRIVEN: HANDLE HIGH-SCORE LEADS WITH IMMEDIATE ATTENTION.",
+      "",
+      "--- CONTEXT ---",
+      `CURRENT_LEAD_STATE: ${JSON.stringify(context.leadState ?? {})}`,
+      `AVAILABLE_AGENTS: ${JSON.stringify(context.availableAgents ?? [])}`,
+      `WORKFLOW_HISTORY: ${JSON.stringify(context.history ?? [])}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "architectural justification for the next state transition",',
+      '  "alternatives": ["alternative_next_agent"],',
+      '  "metadata": {',
+      '    "nextAgent": "string_id_from_available_agents",',
+      '    "rationale": "detailed explanation of workflow logic",',
+      '    "isTerminal": boolean,',
+      '    "suggestedRetry": boolean',
+      "  }",
+      "}",
     ].join("\n");
   }
 

@@ -33,7 +33,8 @@ export default async function SignInPage({
         </form>
 
         <p style={{ marginTop: 24 }}>
-          Back to <Link href="/">home</Link>.
+          Don&apos;t have an account?{" "}
+          <Link href="/auth/sign-up">Create one</Link>.
         </p>
       </section>
     </main>

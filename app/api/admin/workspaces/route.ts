@@ -1,11 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-
-import { getAdminClient } from "@/utils/supabase/admin";
+import { getAppContainer } from "@/src/core/infrastructure/ioc/bootstrap";
+import { IoCTokens } from "@/src/core/infrastructure/ioc/tokens";
+import { CreateWorkspaceUseCase } from "@/src/core/application/use-cases/CreateWorkspaceUseCase";
+import { WorkspaceRepositoryPort } from "@/src/core/application/ports/WorkspaceRepositoryPort";
+import { WorkspaceId } from "@/src/core/domain/shared/ids";
 import { createClient } from "@/utils/supabase/server";
+import { getAdminClient } from "@/utils/supabase/admin";
 
 interface WorkspaceRow {
   id: string;
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const slug = typeof body.slug === "string" ? body.slug.trim().toLowerCase() : "";
   const ownerUserId = typeof body.ownerUserId === "string" ? body.ownerUserId.trim() : "";
+
   if (!name || !slug || !ownerUserId) {
     return NextResponse.json(
       { error: "name, slug, and ownerUserId are required." },
@@ -83,53 +87,11 @@ export async function POST(request: NextRequest) {
       ? body.idempotencyKey.trim()
       : `workspace:${slug}`;
 
-  const admin = getAdminClient();
-  const { data: existingJob, error: existingJobError } = await admin
-    .from("workspace_provisioning_jobs")
-    .select("id, workspace_id, status")
-    .eq("idempotency_key", idempotencyKey)
-    .maybeSingle();
-  if (existingJobError) {
-    return NextResponse.json(
-      { error: `Failed to check idempotency: ${existingJobError.message}` },
-      { status: 500 },
-    );
-  }
-  if (existingJob?.workspace_id) {
-    const { data: existingWorkspace, error: existingWorkspaceError } = await admin
-      .from("workspaces")
-      .select("id, tenant_id, name, slug, status, industry, company_size, owner_user_id, created_at, updated_at")
-      .eq("id", existingJob.workspace_id)
-      .maybeSingle();
-    if (existingWorkspaceError) {
-      return NextResponse.json(
-        { error: `Failed to read existing workspace: ${existingWorkspaceError.message}` },
-        { status: 500 },
-      );
-    }
-    if (existingWorkspace) {
-      const workspace = existingWorkspace as WorkspaceRow;
-      return NextResponse.json(
-        {
-          workspace: {
-            id: workspace.id,
-            tenantId: workspace.tenant_id,
-            name: workspace.name,
-            slug: workspace.slug,
-            status: workspace.status,
-            industry: workspace.industry,
-            companySize: workspace.company_size,
-            ownerUserId: workspace.owner_user_id,
-            createdAt: workspace.created_at,
-            updatedAt: workspace.updated_at,
-          },
-          idempotentReplay: true,
-        },
-        { status: 200 },
-      );
-    }
-  }
+  // 1. Resolve Use Case from IoC
+  const container = getAppContainer();
+  const useCase = container.resolve<CreateWorkspaceUseCase>(IoCTokens.CreateWorkspaceUseCase);
 
+  // 2. Load Template
   const templatePath = resolve(
     process.cwd(),
     "config/workspace-templates/default-workspace.template.json",
@@ -142,99 +104,43 @@ export async function POST(request: NextRequest) {
       : {};
   const config = { ...template, ...configOverrides };
 
-  const tenantId = crypto.randomUUID();
-  const workspaceId = crypto.randomUUID();
-  const now = new Date().toISOString();
+  try {
+    // 3. Execute Use Case
+    const result = await useCase.execute({
+      name,
+      slug,
+      ownerUserId,
+      idempotencyKey,
+      industry: typeof body.industry === "string" ? body.industry : undefined,
+      companySize: typeof body.companySize === "string" ? body.companySize : undefined,
+      templateConfig: config
+    });
 
-  const { error: tenantError } = await admin.from("tenants").insert({
-    id: tenantId,
-    name,
-    slug,
-    created_at: now,
-    updated_at: now,
-  });
-  if (tenantError) {
-    return NextResponse.json({ error: `Failed to create tenant: ${tenantError.message}` }, { status: 500 });
-  }
+    // 4. Fetch the created workspace for response (or just return IDs)
+    const workspaceRepo = container.resolve<WorkspaceRepositoryPort>(IoCTokens.WorkspaceRepository);
+    const workspace = await workspaceRepo.findById(new WorkspaceId(result.workspaceId));
 
-  const { error: workspaceError } = await admin.from("workspaces").insert({
-    id: workspaceId,
-    tenant_id: tenantId,
-    name,
-    slug,
-    status: "active",
-    industry: typeof body.industry === "string" ? body.industry : null,
-    company_size: typeof body.companySize === "string" ? body.companySize : null,
-    owner_user_id: ownerUserId,
-    created_at: now,
-    updated_at: now,
-  });
-  if (workspaceError) {
     return NextResponse.json(
-      { error: `Failed to create workspace: ${workspaceError.message}` },
-      { status: 500 },
-    );
-  }
-
-  const { error: membershipError } = await admin.from("tenant_memberships").insert({
-    tenant_id: tenantId,
-    user_id: ownerUserId,
-    role: "owner",
-    created_at: now,
-  });
-  if (membershipError) {
-    return NextResponse.json(
-      { error: `Failed to create owner membership: ${membershipError.message}` },
-      { status: 500 },
-    );
-  }
-
-  const { error: configError } = await admin.from("workspace_configs").insert({
-    workspace_id: workspaceId,
-    version: 1,
-    config,
-    is_active: true,
-    created_by: auth.userId,
-    created_at: now,
-  });
-  if (configError) {
-    return NextResponse.json(
-      { error: `Failed to create workspace config: ${configError.message}` },
-      { status: 500 },
-    );
-  }
-
-  const { error: jobError } = await admin.from("workspace_provisioning_jobs").insert({
-    workspace_id: workspaceId,
-    idempotency_key: idempotencyKey,
-    status: "completed",
-    step: "bootstrap_complete",
-    attempt_count: 1,
-    started_at: now,
-    completed_at: now,
-    created_at: now,
-  });
-  if (jobError) {
-    return NextResponse.json(
-      { error: `Failed to write provisioning job: ${jobError.message}` },
-      { status: 500 },
-    );
-  }
-
-  return NextResponse.json(
-    {
-      workspace: {
-        id: workspaceId,
-        tenantId,
-        name,
-        slug,
-        status: "active",
-        ownerUserId,
-        createdAt: now,
+      {
+        workspace: {
+          id: workspace?.id.value,
+          tenantId: workspace?.tenantId.value,
+          name: workspace?.name,
+          slug: workspace?.slug,
+          status: workspace?.status,
+          ownerUserId: workspace?.ownerUserId,
+          createdAt: workspace?.createdAt.toISOString(),
+        },
+        jobId: result.jobId
       },
-    },
-    { status: 201 },
-  );
+      { status: 201 },
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: `Failed to create workspace: ${error.message}` },
+      { status: 500 }
+    );
+  }
 }
 
 async function requirePlatformAdmin(): Promise<

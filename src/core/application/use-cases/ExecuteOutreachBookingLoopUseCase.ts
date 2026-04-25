@@ -14,6 +14,7 @@ import { ObservabilityPort } from "@/src/core/application/ports/ObservabilityPor
 import { PolicyEnginePort } from "@/src/core/application/ports/PolicyEnginePort";
 import { ResponseInterpreterPort } from "@/src/core/application/ports/ResponseInterpreterPort";
 import { SendTimingPort } from "@/src/core/application/ports/SendTimingPort";
+import { EmailDeliveryPort } from "@/src/core/application/ports/EmailDeliveryPort";
 import { StrategyPlannerPort } from "@/src/core/application/ports/StrategyPlannerPort";
 import { TemplateLibraryPort } from "@/src/core/application/ports/TemplateLibraryPort";
 import { TemplatePerformancePort } from "@/src/core/application/ports/TemplatePerformancePort";
@@ -56,6 +57,7 @@ export class ExecuteOutreachBookingLoopUseCase {
     private readonly kpi: KpiTrackerPort,
     private readonly decisions: AgentDecisionRepositoryPort,
     private readonly observability: ObservabilityPort,
+    private readonly emailDelivery: EmailDeliveryPort,
   ) {
     const outreachActions: OutreachAgentActions[] = [
       AgentAction.PlanSequence,
@@ -218,6 +220,18 @@ export class ExecuteOutreachBookingLoopUseCase {
       },
       occurredAt: new Date().toISOString(),
     });
+
+    // ACTUAL SEND via EmailDeliveryPort
+    try {
+      await this.emailDelivery.sendEmail({
+        to: lead.email,
+        subject: message.subject,
+        body: message.body,
+      });
+    } catch (sendError: any) {
+      this.observability.error(`Failed to send outreach email: ${sendError.message}`);
+      // In production, we might want to flag this for retry
+    }
     await this.kpi.increment({ tenantId: tenantId.value, metric: "outreach_sent" });
     await this.kpi.increment({ tenantId: tenantId.value, metric: "reply_rate_denominator" });
     await this.eventBus.publish({

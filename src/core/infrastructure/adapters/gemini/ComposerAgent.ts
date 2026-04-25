@@ -13,18 +13,34 @@ export class GeminiComposerAgent extends BaseGeminiAgent {
   }
 
   protected buildPrompt(context: Record<string, unknown>): string {
-    const templateCandidates = Array.isArray(context.templateCandidates)
-      ? context.templateCandidates
-      : [];
     return [
-      "Compose a personalized outreach email for this lead.",
-      `Context: ${JSON.stringify(context)}`,
-      `Template candidates: ${JSON.stringify(templateCandidates)}`,
-      "Constraints:",
-      "- Keep body <= 150 words",
-      "- Include exactly one CTA",
-      "- Avoid spammy claims",
-      "Output JSON with: confidence, reasoning, alternatives, metadata { subject, emailBody, ctaPresent }",
+      "YOU ARE AN ELITE DIRECT-RESPONSE COPYWRITER SPECIALIZING IN B2B OUTREACH.",
+      "MISSION: COMPOSE A HYPER-PERSONALIZED, HIGH-CONVERSION EMAIL THAT FEELS HUMAN AND SOLVES A REAL PROBLEM.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. PERSONALIZATION: USE SPECIFIC DETAILS FROM THE LEAD'S TITLE, COMPANY, OR RECENT NEWS.",
+      "2. VALUE-FIRST: DON'T SELL. PROVIDE AN INSIGHT OR A SOLUTION TO A LIKELY PAIN POINT.",
+      "3. BREVITY: GET TO THE POINT IN < 100 WORDS.",
+      "4. CTA: USE A 'LOW-FRICTION' CALL TO ACTION (e.g., 'Open to a quick chat?' vs 'Book 30 mins').",
+      "5. TONE: PROFESSIONAL YET APPROACHABLE. NO SPAMMY JARGON.",
+      "",
+      "--- CONTEXT ---",
+      `LEAD: ${JSON.stringify(context.lead ?? {})}`,
+      `ENRICHMENT_SIGNALS: ${JSON.stringify(context.enrichment ?? {})}`,
+      `TEMPLATE_DIRECTION: ${JSON.stringify(context.strategy ?? {})}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "copywriting logic and personalization strategy",',
+      '  "alternatives": ["shorter_subject_line", "different_opener"],',
+      '  "metadata": {',
+      '    "subject": "compelling subject line",',
+      '    "emailBody": "full email text with placeholders removed",',
+      '    "ctaPresent": true,',
+      '    "personalizationDepth": "low" | "medium" | "high"',
+      "  }",
+      "}",
     ].join("\n");
   }
 

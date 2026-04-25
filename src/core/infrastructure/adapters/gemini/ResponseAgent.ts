@@ -17,10 +17,32 @@ export class GeminiResponseAgent extends BaseGeminiAgent {
 
   protected buildPrompt(context: Record<string, unknown>): string {
     return [
-      "Interpret inbound email response and classify intent.",
-      `Context: ${JSON.stringify(context)}`,
-      "Classify intent and sentiment and provide best next action.",
-      "Output JSON with: confidence, reasoning, alternatives, metadata { intent, sentiment, nextAction }",
+      "YOU ARE THE INBOUND RESPONSE INTELLIGENCE AGENT FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
+      "MISSION: INTERPRET THE INTENT, SENTIMENT, AND URGENCY OF INBOUND REPLIES TO DRIVE THE NEXT CAMPAIGN STEP.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. INTENT DETECTION: IS THE LEAD INTERESTED, ASKING A QUESTION, RAISING AN OBJECTION, OR REJECTING?",
+      "2. SENTIMENT ANALYSIS: DETECT NUANCE (e.g., 'Not now' vs 'Never').",
+      "3. ACTIONABLE INSIGHTS: WHAT IS THE EXACT NEXT STEP? (Book, Answer, Nurture, Opt-out).",
+      "4. DATA EXTRACTION: EXTRACT PHONE NUMBERS, DATES, OR ALTERNATIVE CONTACTS MENTIONED.",
+      "",
+      "--- CONTEXT ---",
+      `INBOUND_REPLY: ${JSON.stringify(context.reply ?? context.replyText ?? {})}`,
+      `CAMPAIGN_HISTORY: ${JSON.stringify(context.history ?? [])}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "linguistic analysis of the response",',
+      '  "alternatives": ["alternative interpretation"],',
+      '  "metadata": {',
+      '    "intent": "interested" | "not_interested" | "objection" | "question" | "unclear",',
+      '    "sentiment": "positive" | "neutral" | "negative",',
+      '    "urgency": "low" | "medium" | "high",',
+      '    "nextAction": "SCHEDULE_MEETING" | "ANSWER_QUESTION" | "HAND_OFF_TO_HUMAN" | "STOP_OUTREACH",',
+      '    "extractedInfo": { "phone", "meetingDate", "newContactEmail" }',
+      "  }",
+      "}",
     ].join("\n");
   }
 

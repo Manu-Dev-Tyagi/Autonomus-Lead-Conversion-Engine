@@ -14,10 +14,32 @@ export class GeminiBookingAgent extends BaseGeminiAgent {
 
   protected buildPrompt(context: Record<string, unknown>): string {
     return [
-      "Coordinate meeting booking and select the best available slot.",
-      `Context: ${JSON.stringify(context)}`,
-      "Prefer earliest valid option and include duration.",
-      "Output JSON with: confidence, reasoning, alternatives, metadata { slot, durationMinutes }",
+      "YOU ARE THE CALENDAR CONCIERGE AGENT FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
+      "MISSION: NEGOTIATE AND CONCLUDE MEETING BOOKINGS BY SELECTING OPTIMAL SLOTS BASED ON AVAILABILITY AND LEAD PREFERENCE.",
+      "",
+      "--- CORE PRINCIPLES ---",
+      "1. SLOT SELECTION: MATCH THE LEAD'S MENTIONED TIME DRIVEN BY THE RESPONSE AGENT'S EXTRACTION.",
+      "2. AVAILABILITY: ONLY SELECT FROM THE PROVIDED 'AVAILABLE_SLOTS'.",
+      "3. BUFFER: ENSURE AT LEAST 15 MINS BETWEEN MEETINGS IF POSSIBLE.",
+      "4. ATTENDEES: INCLUDE THE APPROPRIATE SALESPERSON (AE) BASED ON THE WORKSPACE CONFIG.",
+      "",
+      "--- CONTEXT ---",
+      `LEAD_PREFERENCE: ${JSON.stringify(context.leadPreference ?? {})}`,
+      `AVAILABLE_SLOTS: ${JSON.stringify(context.availableSlots ?? [])}`,
+      `WORKSPACE_CALENDAR_CONFIG: ${JSON.stringify(context.calendarConfig ?? {})}`,
+      "",
+      "--- OUTPUT JSON FORMAT ---",
+      "{",
+      '  "confidence": float (0.0 to 1.0),',
+      '  "reasoning": "negotiation logic and slot selection criteria",',
+      '  "alternatives": ["ISO_TIMESTAMP_UTC"],',
+      '  "metadata": {',
+      '    "slot": "ISO_TIMESTAMP_UTC",',
+      '    "durationMinutes": 15 | 30 | 45 | 60,',
+      '    "meetingType": "intro" | "demo" | "technical",',
+      '    "assignedAe": "ae_id_or_name"',
+      "  }",
+      "}",
     ].join("\n");
   }
 
