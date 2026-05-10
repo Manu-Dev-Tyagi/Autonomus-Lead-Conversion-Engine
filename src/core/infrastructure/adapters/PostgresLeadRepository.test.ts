@@ -14,6 +14,10 @@ describe("PostgresLeadRepository", () => {
         email: "lead@example.com",
         state: "qualified",
         score: 88,
+        enrichment_data: null,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       },
       error: null,
     });

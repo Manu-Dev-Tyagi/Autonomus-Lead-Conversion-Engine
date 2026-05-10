@@ -36,21 +36,21 @@ export class ClearbitAdapter implements IEnrichmentProvider {
     if (payload.category?.industry) {
       fields.industry = {
         value: payload.category.industry,
-        confidence: 0.92,
+        confidence: 0.90, // Clearbit industry confidence from R&D doc
         source: this.name,
       };
     }
     if (typeof payload.metrics?.employees === "number") {
       fields.companySize = {
         value: payload.metrics.employees,
-        confidence: 0.9,
+        confidence: 0.85, // Clearbit employees confidence
         source: this.name,
       };
     }
     if (payload.location) {
       fields.location = {
         value: payload.location,
-        confidence: 0.86,
+        confidence: 0.85, // Default for location
         source: this.name,
       };
     }

@@ -37,6 +37,10 @@ export const IoCTokens = {
   TemplatePerformance: Symbol("TemplatePerformance"),
   MessageComposer: Symbol("MessageComposer"),
   SendTiming: Symbol("SendTiming"),
+  ErrorHandler: Symbol("ErrorHandler"),
+  VectorDatabase: Symbol("VectorDatabase"),
+  Embedding: Symbol("Embedding"),
+  RAGContextBuilder: Symbol("RAGContextBuilder"),
 } as const;
 
 export type IoCToken = (typeof IoCTokens)[keyof typeof IoCTokens];

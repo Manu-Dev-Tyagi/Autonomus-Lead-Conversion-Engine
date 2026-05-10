@@ -27,12 +27,16 @@ import { GeminiScoringAgent } from "@/src/core/infrastructure/adapters/gemini/Ge
 import { GeminiStrategyAgent } from "@/src/core/infrastructure/adapters/gemini/StrategyAgent";
 import { GeminiTimingAgent } from "@/src/core/infrastructure/adapters/gemini/TimingAgent";
 import { ScoringAgentGatewayAdapter } from "@/src/core/infrastructure/adapters/scoring/ScoringAgentGatewayAdapter";
+import { RAGContextBuilder } from "@/src/core/infrastructure/rag/RAGContextBuilder";
 
 export class LlmAgentGatewayAdapter implements AgentGatewayPort {
   private readonly agents = new Map<AgentAction, AgentGatewayPort>();
   private readonly historicalOutcomesReader: HistoricalOutcomesReadPort;
 
-  constructor(deps?: { historicalOutcomesReader?: HistoricalOutcomesReadPort }) {
+  constructor(deps?: { 
+    historicalOutcomesReader?: HistoricalOutcomesReadPort;
+    ragContextBuilder?: RAGContextBuilder;
+  }) {
     this.historicalOutcomesReader =
       deps?.historicalOutcomesReader ?? this.buildHistoricalOutcomesReader();
     const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -55,7 +59,12 @@ export class LlmAgentGatewayAdapter implements AgentGatewayPort {
     this.agents.set(
       AgentAction.ScoreLead,
       new ScoringAgentGatewayAdapter(
-        new GeminiScoringAgent(geminiApiKey, model, this.readGenerationConfig(AgentAction.ScoreLead)),
+        new GeminiScoringAgent(
+          geminiApiKey,
+          model,
+          this.readGenerationConfig(AgentAction.ScoreLead),
+          deps?.ragContextBuilder ?? (global as any).ragContextBuilder // This is a bit hacky, I should pass it properly
+        ),
         this.historicalOutcomesReader,
       ),
     );

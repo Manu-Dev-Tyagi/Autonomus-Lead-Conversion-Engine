@@ -1,91 +1,128 @@
-import { AgentGatewayPort } from "@/src/core/application/ports/AgentGatewayPort";
 import { AgentAction } from "@/src/core/domain/agent/AgentAction";
 import { AgentDecision } from "@/src/core/domain/agent/AgentDecision";
 import { BaseGeminiAgent, FewShotExample } from "@/src/core/infrastructure/adapters/gemini/BaseGeminiAgent";
+import { RAGContextBuilder } from "@/src/core/infrastructure/rag/RAGContextBuilder";
 
-export class GeminiScoringAgent extends BaseGeminiAgent implements AgentGatewayPort {
+export class GeminiScoringAgent extends BaseGeminiAgent {
+  constructor(
+    apiKey: string,
+    model: string | undefined,
+    generationConfig: any,
+    private readonly ragContextBuilder: RAGContextBuilder
+  ) {
+    super(apiKey, model, generationConfig);
+  }
+
   async execute(_: AgentAction, context: Record<string, unknown>): Promise<AgentDecision> {
-    const parsed = await this.callGemini(context);
+    const lead = context.lead as any;
+    const tenantId = context.tenantId as string;
+    
+    // Build RAG context
+    const ragContext = this.ragContextBuilder 
+      ? await this.ragContextBuilder.buildContext(lead, tenantId)
+      : { similarLeads: [] };
+    
+    const parsed = await this.callGemini({
+      ...context,
+      ragContext,
+    });
+
     return this.normalizeDecision(
       AgentAction.ScoreLead,
       parsed,
-      "Scoring decision generated with fallback reasoning.",
+      "Scoring decision generated with RAG-enhanced reasoning.",
     );
   }
 
   protected buildPrompt(context: Record<string, unknown>): string {
-    return [
-      "YOU ARE THE LEAD SCORING & QUALIFICATION AGENT FOR THE AUTONOMOUS LEAD ENGINE (ALE).",
-      "MISSION: CALCULATE A HIGH-PRECISION QUALIFICATION SCORE (0-100) BASED ON ICP FIT AND INTENT.",
-      "",
-      "--- CORE PRINCIPLES ---",
-      "1. ICP ALIGNMENT: HOW WELL DOES THE LEAD MATCH THE IDEAL CUSTOMER PROFILE?",
-      "2. INTENT SIGNALS: WEIGHT BEHAVIORAL DATA (visits, downloads, replies) HEAVILY.",
-      "3. PATTERN MATCHING: ANALYZE HISTORICAL CONVERSIONS FOR SIMILARITIES.",
-      "4. RISK ASSESSMENT: IDENTIFY RED FLAGS (competitors, fake data).",
-      "",
-      "--- CONTEXT ---",
-      `LEAD_DATA: ${JSON.stringify(context.lead ?? {})}`,
-      `IDEAL_CUSTOMER_PROFILE: ${JSON.stringify(context.tenantConfig ?? {})}`,
-      `HISTORICAL_SUCCESS_PATTERNS: ${JSON.stringify(context.historicalPatterns ?? [])}`,
-      "",
-      "--- OUTPUT JSON FORMAT ---",
-      "{",
-      '  "confidence": float (0.0 to 1.0),',
-      '  "reasoning": "multi-step scoring breakdown",',
-      '  "score": integer (0 to 100),',
-      '  "breakdown": {',
-      '    "firmographicScore": integer,',
-      '    "personaScore": integer,',
-      '    "intentScore": integer,',
-      '    "conversionProbability": float',
-      '  },',
-      '  "qualitativeAnalysis": "detailed notes on lead quality",',
-      '  "metadata": { "qualificationRecommendation": "QUALIFY" | "DISQUALIFY" | "REVIEW" }',
-      "}",
-    ].join("\n");
+    const lead = context.lead as any;
+    const icp = context.tenantConfig as any;
+    const ragContext = context.ragContext as any;
+
+    return `
+═══════════════════════════════════════════════════════════════
+🎯 LEAD SCORING AGENT - PRODUCTION SYSTEM
+═══════════════════════════════════════════════════════════════
+
+MISSION: Calculate precise qualification score (0-100) for B2B lead
+
+📊 LEAD PROFILE:
+Email: ${lead.email}
+Industry: ${lead.enrichmentData?.company?.industry || "Unknown"}
+Company Size: ${lead.enrichmentData?.company?.employees || "Unknown"}
+Title: ${lead.enrichmentData?.person?.title || "Unknown"}
+
+🎯 IDEAL CUSTOMER PROFILE (ICP):
+Target Industries: ${JSON.stringify(icp?.industries || [])}
+Target Company Size: ${JSON.stringify(icp?.companySize || {})}
+Target Titles: ${JSON.stringify(icp?.titles || [])}
+
+📈 HISTORICAL CONTEXT (RAG):
+Similar Past Leads Found: ${ragContext?.similarLeads?.length || 0}
+${(ragContext?.similarLeads || []).map((l: any, i: number) => `
+${i + 1}. ${l.lead.enrichmentData?.company?.name} - ${l.lead.enrichmentData?.person?.title}
+   Similarity: ${(l.similarity * 100).toFixed(1)}%
+   Outcome: ${l.outcome}
+`).join("\n")}
+
+📋 SCORING METHODOLOGY (Total 100 points):
+1. ICP FIT (40 pts): 
+   - Industry match (15 pts: exact=15, adjacent=8, outside=0)
+   - Company size (15 pts: within range=15, ±50%=8, outside=0)
+   - Title/seniority (10 pts: decision-maker=10, influencer=6, IC=2)
+2. INTENT SIGNALS (30 pts): 
+   - Company growth/funding/hiring (10 pts)
+   - Tech stack fit (10 pts)
+   - Engagement history (10 pts: pricing=10, blog=6, homepage=3)
+3. DATA QUALITY (20 pts): 
+   - Profile completeness (10 pts: >80%=10, 50-80%=6, <50%=2)
+   - Source confidence (10 pts: verified=10, inferred=5)
+4. TIMING (10 pts): 
+   - Recency of signal (5 pts: <7d=5, 7-30d=3, >30d=1)
+   - Fiscal cycle fit (5 pts: Q1/Q4 budget season=5, Q2/Q3=3)
+
+OUTPUT FORMAT (JSON):
+{
+  "score": integer (0-100),
+  "confidence": float (0.0-1.0),
+  "reasoning": "detailed explanation",
+  "breakdown": {
+    "icpFit": integer,
+    "intentSignals": integer,
+    "dataQuality": integer,
+    "timing": integer
+  },
+  "metadata": { "qualificationRecommendation": "QUALIFY" | "DISQUALIFY" | "REVIEW" }
+}
+`;
   }
 
   protected validateDecision(decision: AgentDecision): boolean {
-    if (!Number.isFinite(decision.confidence) || decision.confidence < 0 || decision.confidence > 1) {
-      return false;
-    }
-    if (!decision.reasoning.trim()) {
-      return false;
-    }
-    return decision.action === AgentAction.ScoreLead;
+    const metadata = decision.metadata as any;
+    const innerMetadata = metadata.metadata || {};
+    return (
+      decision.action === AgentAction.ScoreLead &&
+      typeof metadata.score === "number" &&
+      ["QUALIFY", "DISQUALIFY", "REVIEW"].includes(innerMetadata.qualificationRecommendation)
+    );
   }
 
   protected getFewShotExamples(): FewShotExample[] {
     return [
       {
         input: {
-          lead: {
-            title: "VP Engineering",
-            industry: "SaaS",
-            companySize: 180,
-            intentSignals: ["pricing_page_visit", "security_question"],
-          },
-          tenantConfig: {
-            industries: ["SaaS", "FinTech"],
-            titles: ["CTO", "VP Engineering"],
-            companySize: { min: 50, max: 1000 },
-          },
+          lead: { email: "test@example.com" },
+          ragContext: { similarLeads: [{ outcome: "converted", similarity: 0.9 }] }
         },
         output: {
-          confidence: 0.87,
-          score: 88,
-          reasoning: "Strong ICP alignment and high-intent buyer signals.",
-          breakdown: {
-            icpFit: 90,
-            intentSignals: 85,
-            dataQuality: 80,
-            timing: 85,
-          },
-          alternatives: ["QUALIFY_WITH_REVIEW"],
-          metadata: { qualificationRecommendation: "QUALIFY" },
-        },
-      },
+          score: 85,
+          confidence: 0.9,
+          reasoning: "Strong similarity to previously converted lead.",
+          breakdown: { icpFit: 35, intentSignals: 25, dataQuality: 15, timing: 10 },
+          metadata: { qualificationRecommendation: "QUALIFY" }
+        }
+      }
     ];
   }
 }
+

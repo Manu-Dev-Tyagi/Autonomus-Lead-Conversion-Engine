@@ -113,31 +113,43 @@ export class OrchestrateLeadLifecycleUseCase {
         occurredAt: new Date().toISOString(),
       });
 
-      const score = Math.round(scoringDecision.confidence * 100);
+      const score = Math.round(((scoringDecision.metadata as any).score ?? (scoringDecision.confidence * 100)));
       lead.updateScore(score);
+      
+      const blendedConfidence = scoringDecision.confidence;
+      const qualifyScore = Number(process.env.ALE_THRESHOLD_QUALIFY_SCORE ?? 70);
+      const qualifyConf = Number(process.env.ALE_THRESHOLD_QUALIFY_CONFIDENCE ?? 0.72);
+      const reviewScoreMin = Number(process.env.ALE_THRESHOLD_REVIEW_SCORE_MIN ?? 50);
+      const reviewConfMin = Number(process.env.ALE_THRESHOLD_REVIEW_CONFIDENCE_MIN ?? 0.55);
+      const escalateConf = Number(process.env.ALE_THRESHOLD_AUTO_ESCALATE_CONFIDENCE ?? 0.45);
+
+      let finalStatus: string = "disqualified";
+
+      if (blendedConfidence < escalateConf) {
+        lead.transitionTo(LeadState.Escalated);
+        finalStatus = "escalated";
+      } else if (score >= qualifyScore && blendedConfidence >= qualifyConf) {
+        lead.transitionTo(LeadState.Qualified);
+        finalStatus = "qualified";
+      } else if (score >= reviewScoreMin || blendedConfidence >= reviewConfMin) {
+        lead.transitionTo(LeadState.Review);
+        finalStatus = "review";
+      } else {
+        lead.transitionTo(LeadState.Disqualified);
+        finalStatus = "disqualified";
+      }
+
       await this.eventBus.publish({
         type: DomainEventType.LeadScored,
         aggregateId: leadId.value,
         tenantId: tenantId.value,
         occurredAt: new Date().toISOString(),
-        payload: { schemaVersion: 1, score, confidence: scoringDecision.confidence },
+        payload: { schemaVersion: 1, score, confidence: blendedConfidence, status: finalStatus },
       });
 
-      let status: "qualified" | "disqualified" = "disqualified";
-      if (score >= QUALIFICATION_THRESHOLD) {
-        lead.transitionTo(LeadState.Qualified);
-        status = "qualified";
+      if (finalStatus === "qualified") {
         await this.eventBus.publish({
           type: DomainEventType.LeadQualified,
-          aggregateId: leadId.value,
-          tenantId: tenantId.value,
-          occurredAt: new Date().toISOString(),
-          payload: { schemaVersion: 1, score },
-        });
-      } else {
-        lead.transitionTo(LeadState.Disqualified);
-        await this.eventBus.publish({
-          type: DomainEventType.LeadDisqualified,
           aggregateId: leadId.value,
           tenantId: tenantId.value,
           occurredAt: new Date().toISOString(),
@@ -153,12 +165,12 @@ export class OrchestrateLeadLifecycleUseCase {
         score: lead.score,
         updatedAt: new Date().toISOString(),
       });
-      const result: IdempotencyResult = { status, leadId: lead.id.value, score };
+      const result: IdempotencyResult = { status: finalStatus as any, leadId: lead.id.value, score };
       await this.idempotency.complete(command.idempotencyKey, result);
       await this.tenantOpsMetrics.incrementSuccess(tenantId.value);
       this.observability.metric("lifecycle_orchestration_completed", 1, {
         tenantId: tenantId.value,
-        status,
+        status: finalStatus,
       });
       this.observability.metric(
         "lifecycle_orchestration_latency_ms",

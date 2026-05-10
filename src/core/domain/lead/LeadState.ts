@@ -10,4 +10,6 @@ export enum LeadState {
   Booked = "booked",
   Converted = "converted",
   Lost = "lost",
+  Review = "review",
+  Escalated = "escalated",
 }

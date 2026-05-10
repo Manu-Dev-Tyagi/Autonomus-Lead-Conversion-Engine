@@ -39,31 +39,38 @@ export class TemplateDrivenComposerAdapter implements MessageComposerPort {
     let lastValidation: { score: number; reasons: string[] } | null = null;
     const attempts = Math.max(1, this.maxGenerationAttempts);
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      const decision = await this.composerAgent.execute(AgentAction.ComposeMessage, {
-        tenantId: input.tenantId,
-        leadId: input.leadId,
-        sequenceId: input.sequenceId,
-        selectedTemplateId: selected?.id,
-        templateCandidates: input.templateCandidates ?? [],
-        personalizations,
-        constraints: {
-          maxWords: 150,
-          includeCTA: true,
-          validationRetry: attempt > 1,
-          previousFailureReasons: lastValidation?.reasons ?? [],
-        },
-      });
-      const payload = this.readMetadata(decision.metadata);
-      const subject = typeof payload.subject === "string" ? payload.subject : "";
-      const body = typeof payload.emailBody === "string" ? payload.emailBody : "";
+      try {
+        const decision = await this.composerAgent.execute(AgentAction.ComposeMessage, {
+          tenantId: input.tenantId,
+          leadId: input.leadId,
+          sequenceId: input.sequenceId,
+          selectedTemplateId: selected?.id,
+          templateCandidates: input.templateCandidates ?? [],
+          personalizations,
+          constraints: {
+            maxWords: 150,
+            includeCTA: true,
+            validationRetry: attempt > 1,
+            previousFailureReasons: lastValidation?.reasons ?? [],
+          },
+        });
+        const payload = this.readMetadata(decision.metadata);
+        const subject = typeof payload.subject === "string" ? payload.subject : "";
+        const body = typeof payload.emailBody === "string" ? payload.emailBody : "";
 
-      const validation = this.emailValidator.validate({ subject, body, maxWords: 150 });
-      lastValidation = { score: validation.score, reasons: validation.reasons };
-      if (validation.valid && validation.score >= this.minValidationScore) {
-        return {
-          subject,
-          body,
-          templateId: selected?.id,
+        const validation = this.emailValidator.validate({ subject, body, maxWords: 150 });
+        lastValidation = { score: validation.score, reasons: validation.reasons };
+        if (validation.valid && validation.score >= this.minValidationScore) {
+          return {
+            subject,
+            body,
+            templateId: selected?.id,
+          };
+        }
+      } catch (error) {
+        lastValidation = {
+          score: 0,
+          reasons: [error instanceof Error ? error.message : "Unknown agent error"],
         };
       }
     }

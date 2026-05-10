@@ -25,6 +25,34 @@ export class ScoringAgentGatewayAdapter implements AgentGatewayPort {
     }
 
     const scoringContext = context as AgentContextByAction[AgentAction.ScoreLead] & Record<string, unknown>;
+    const lead = this.readRecord(scoringContext.lead ?? scoringContext);
+
+    // 1. Business Logic Guardrails - Hard Blocks
+    const domain = (lead.email as string || "").split("@")[1]?.toLowerCase();
+    const isPersonal = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com"].includes(domain);
+    const isCompetitor = (process.env.ALE_COMPETITOR_DOMAINS || "").split(",").includes(domain);
+
+    if (isCompetitor || isPersonal) {
+      return {
+        action: AgentAction.DisqualifyLead,
+        confidence: 1.0,
+        reasoning: isCompetitor ? "Competitor domain detected." : "Personal email domain detected.",
+        alternatives: [],
+        metadata: { score: 0, autoDisqualified: true },
+      };
+    }
+
+    // 2. Business Logic Guardrails - Hard Qualify Bypass
+    if (scoringContext.isReferral || scoringContext.isPreviousCustomer) {
+      return {
+        action: AgentAction.QualifyLead,
+        confidence: 1.0,
+        reasoning: scoringContext.isReferral ? "Referred lead with warm intro." : "Previous customer re-engagement.",
+        alternatives: [],
+        metadata: { score: 100, autoQualified: true },
+      };
+    }
+
     const factors = this.calculateFactors(scoringContext);
     const historicalConversionRate = await this.estimateHistoricalConversionRate(scoringContext);
 
@@ -36,14 +64,35 @@ export class ScoringAgentGatewayAdapter implements AgentGatewayPort {
 
     const aggregate = (factors.icpFit + factors.intentSignals + factors.enrichmentQuality + factors.timingSensitivity) / 4;
     const blendedConfidence = Math.max(0, Math.min(1, decision.confidence * 0.7 + (aggregate / 100) * 0.3));
+    const score = (decision.metadata as any).score ?? 0;
+
+    // 3. Threshold-based State Selection
+    let finalAction: AgentAction = AgentAction.ScoreLead;
+    const qualifyScore = Number(process.env.ALE_THRESHOLD_QUALIFY_SCORE ?? 70);
+    const qualifyConf = Number(process.env.ALE_THRESHOLD_QUALIFY_CONFIDENCE ?? 0.72);
+    const reviewScoreMin = Number(process.env.ALE_THRESHOLD_REVIEW_SCORE_MIN ?? 50);
+    const reviewConfMin = Number(process.env.ALE_THRESHOLD_REVIEW_CONFIDENCE_MIN ?? 0.55);
+    const escalateConf = Number(process.env.ALE_THRESHOLD_AUTO_ESCALATE_CONFIDENCE ?? 0.45);
+
+    if (blendedConfidence < escalateConf) {
+      finalAction = AgentAction.OrchestrateWorkflow; // Route to human/escalation
+    } else if (score >= qualifyScore && blendedConfidence >= qualifyConf) {
+      finalAction = AgentAction.QualifyLead;
+    } else if (score >= reviewScoreMin || blendedConfidence >= reviewConfMin) {
+      finalAction = AgentAction.ScoreLead; // Keep in REVIEW state (ScoreLead action)
+    } else {
+      finalAction = AgentAction.DisqualifyLead;
+    }
 
     return {
       ...decision,
+      action: finalAction,
       confidence: blendedConfidence,
       metadata: {
         ...decision.metadata,
         scores: factors,
         historicalConversionRate,
+        finalDecision: finalAction,
       },
     };
   }

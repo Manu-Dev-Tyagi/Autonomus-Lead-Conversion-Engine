@@ -23,9 +23,9 @@ describe("TemplateDrivenComposerAdapter", () => {
                       confidence: 0.86,
                       reasoning: "ok",
                       metadata: {
-                        subject: "Quick idea for Acme",
-                        emailBody: "Hi Alex, open to a 15-min call next week?",
-                        ctaPresent: true,
+                        subject: "Quick idea for Acme growth",
+                        emailBody: "Hi Alex, I was looking at Acme's recent expansion into the European market and was really impressed by your approach to localized payments. I have a few thoughts on how we could potentially streamline your checkout process to increase conversion rates by another 5-10%. Would you be open to a quick 15-minute introductory call next Tuesday or Wednesday afternoon to discuss this further? Best, Manu.",
+                        ctaCount: 1,
                       },
                     }),
                   },
@@ -79,9 +79,9 @@ describe("TemplateDrivenComposerAdapter", () => {
                         confidence: 0.75,
                         reasoning: "first try",
                         metadata: {
-                          subject: "Quick idea for Acme",
-                          emailBody: "Hi Alex, sharing a short note.",
-                          ctaPresent: false,
+                          subject: "Quick idea for Acme growth",
+                          emailBody: "Hi Alex, I was sharing a short note regarding your recent growth. I think we have some interesting synergies that could help you scale even faster. Are you free for a chat?",
+                          ctaCount: 1,
                         },
                       }),
                     },
@@ -103,9 +103,9 @@ describe("TemplateDrivenComposerAdapter", () => {
                         confidence: 0.86,
                         reasoning: "second try",
                         metadata: {
-                          subject: "Quick idea for Acme",
-                          emailBody: "Hi Alex, open to a 15-min call next week?",
-                          ctaPresent: true,
+                          subject: "Quick idea for Acme growth",
+                          emailBody: "Hi Alex, I was looking at Acme's recent expansion into the European market and was really impressed by your approach to localized payments. I have a few thoughts on how we could potentially streamline your checkout process to increase conversion rates by another 5-10%. Would you be open to a quick 15-minute introductory call next Tuesday or Wednesday afternoon to discuss this further? Best, Manu.",
+                          ctaCount: 1,
                         },
                       }),
                     },
@@ -142,7 +142,7 @@ describe("TemplateDrivenComposerAdapter", () => {
       ],
     });
 
-    expect(message.body).toContain("15-min call");
+    expect(message.body).toContain("15-minute introductory call");
   });
 
   it("fails after max attempts when validation does not pass", async () => {

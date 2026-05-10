@@ -12,7 +12,7 @@ import { SequenceLibraryPort } from "@/src/core/application/ports/SequenceLibrar
 import { StrategyPerformancePort } from "@/src/core/application/ports/StrategyPerformancePort";
 import { StrategyPlannerPort } from "@/src/core/application/ports/StrategyPlannerPort";
 import { TenantOpsMetricsPort } from "@/src/core/application/ports/TenantOpsMetricsPort";
-import { ConsoleObservabilityAdapter } from "@/src/core/infrastructure/adapters/ConsoleObservabilityAdapter";
+import { WinstonObservabilityAdapter } from "@/src/core/infrastructure/adapters/WinstonObservabilityAdapter";
 import { InMemoryDeadLetterQueueAdapter } from "@/src/core/infrastructure/adapters/InMemoryDeadLetterQueueAdapter";
 import { InMemoryHistoricalOutcomesReadAdapter } from "@/src/core/infrastructure/adapters/InMemoryHistoricalOutcomesReadAdapter";
 import { InMemoryPipelineReadModelAdapter } from "@/src/core/infrastructure/adapters/InMemoryPipelineReadModelAdapter";
@@ -26,6 +26,7 @@ import { PostgresWorkspaceConfigRepository } from "@/src/core/infrastructure/ada
 import { PostgresWorkspaceRepository } from "@/src/core/infrastructure/adapters/PostgresWorkspaceRepository";
 import { QueueEventBusAdapter } from "@/src/core/infrastructure/adapters/QueueEventBusAdapter";
 import { AwsSqsEventBusAdapter } from "@/src/core/infrastructure/adapters/AwsSqsEventBusAdapter";
+import { PostgresEventBusAdapter } from "@/src/core/infrastructure/adapters/PostgresEventBusAdapter";
 import { SendGridEmailAdapter } from "@/src/core/infrastructure/adapters/SendGridEmailAdapter";
 import { GoogleCalendarAdapter } from "@/src/core/infrastructure/adapters/GoogleCalendarAdapter";
 import { DeterministicExperimentAssignmentAdapter } from "@/src/core/infrastructure/adapters/strategy/DeterministicExperimentAssignmentAdapter";
@@ -61,8 +62,11 @@ import {
   InMemoryPolicyEngine, 
   InMemoryLearningFeedback, 
   InMemoryKpiTracker,
-  BookingCoordinatorAdapter
 } from "@/src/core/infrastructure/adapters/InMemorySimulationAdapters";
+import { BookingCoordinatorAdapter } from "@/src/core/infrastructure/adapters/BookingCoordinatorAdapter";
+
+import { MockAgentGateway } from "@/src/core/infrastructure/adapters/MockAgentGateway";
+import { TemplateRepository } from "@/src/core/infrastructure/adapters/templates/TemplateRepository";
 import { 
   InMemoryLeadRepository, 
   InMemoryProvisioningJobRepository, 
@@ -82,7 +86,13 @@ import { ResponseInterpreterPort } from "@/src/core/application/ports/ResponseIn
 import { MessageComposerPort } from "@/src/core/application/ports/MessageComposerPort";
 import { TemplateLibraryPort } from "@/src/core/application/ports/TemplateLibraryPort";
 import { TemplatePerformancePort } from "@/src/core/application/ports/TemplatePerformancePort";
+import { ErrorHandler } from "@/src/core/application/services/ErrorHandler";
+import { GeminiEmbeddingAdapter } from "@/src/core/infrastructure/adapters/GeminiEmbeddingAdapter";
+import { FaissVectorDatabaseAdapter } from "@/src/core/infrastructure/adapters/FaissVectorDatabaseAdapter";
+import { RAGContextBuilder } from "@/src/core/infrastructure/rag/RAGContextBuilder";
 import { SendTimingPort } from "@/src/core/application/ports/SendTimingPort";
+import { VectorDatabasePort } from "@/src/core/application/ports/VectorDatabasePort";
+import { EmbeddingPort } from "@/src/core/application/ports/EmbeddingPort";
 
 export function registerCoreAdapters(container: Container = appContainer): void {
   const historicalOutcomesReader = buildHistoricalOutcomesReader();
@@ -91,11 +101,13 @@ export function registerCoreAdapters(container: Container = appContainer): void 
   // Infrastructure
   container.register<ClockPort>(IoCTokens.Clock, new SystemClock());
   container.register<IdGeneratorPort>(IoCTokens.IdGenerator, new UuidGenerator());
-  container.register<ObservabilityPort>(IoCTokens.Observability, new ConsoleObservabilityAdapter());
+  container.register<ObservabilityPort>(IoCTokens.Observability, new WinstonObservabilityAdapter());
   
   const eventBus = process.env.AWS_SQS_QUEUE_URL 
     ? new AwsSqsEventBusAdapter() 
-    : new QueueEventBusAdapter();
+    : dbConfigured 
+      ? new PostgresEventBusAdapter()
+      : new QueueEventBusAdapter();
   container.register<EventBusPort>(IoCTokens.EventBus, eventBus);
 
   const emailDelivery = process.env.SENDGRID_API_KEY
@@ -144,11 +156,23 @@ export function registerCoreAdapters(container: Container = appContainer): void 
   container.register<StrategyPerformancePort>(IoCTokens.StrategyPerformance, strategyPerformance);
   container.register<ExperimentAssignmentPort>(IoCTokens.ExperimentAssignment, experimentAssignment);
 
+  const geminiApiKey = process.env.GEMINI_API_KEY || "";
+  container.register<EmbeddingPort>(IoCTokens.Embedding, new GeminiEmbeddingAdapter(geminiApiKey));
+  container.register<VectorDatabasePort>(IoCTokens.VectorDatabase, new FaissVectorDatabaseAdapter(768)); // Gemini embeddings are 768 dims by default
+  container.register<RAGContextBuilder>(IoCTokens.RAGContextBuilder, new RAGContextBuilder(
+    container.resolve(IoCTokens.VectorDatabase),
+    container.resolve(IoCTokens.Embedding),
+    container.resolve(IoCTokens.LeadRepository)
+  ));
+
   // Agent Gateway
   const hasGeminiKey = !!process.env.GEMINI_API_KEY;
   const agentGateway = hasGeminiKey 
-    ? new LlmAgentGatewayAdapter({ historicalOutcomesReader })
-    : new (require("@/src/core/infrastructure/adapters/MockAgentGateway").MockAgentGateway)();
+    ? new LlmAgentGatewayAdapter({ 
+        historicalOutcomesReader,
+        ragContextBuilder: container.resolve<RAGContextBuilder>(IoCTokens.RAGContextBuilder)
+      })
+    : new MockAgentGateway();
   
   container.register<AgentGatewayPort>(IoCTokens.AgentGateway, agentGateway);
   
@@ -178,13 +202,16 @@ export function registerCoreAdapters(container: Container = appContainer): void 
   container.register<LearningFeedbackPort>(IoCTokens.Learning, learningFeedback);
   container.register<KpiTrackerPort>(IoCTokens.Kpi, kpiTracker);
   container.register<BookingCoordinatorPort>(IoCTokens.Booking, booking);
+  container.register<ErrorHandler>(IoCTokens.ErrorHandler, new ErrorHandler(container.resolve(IoCTokens.Observability)));
+  
+
 
   // Specialized Activity Adapters - Safely handle Mock vs Real gateway
   const responseAgent = (agentGateway as any).agents?.get(AgentAction.InterpretResponse) ?? agentGateway;
   const composerAgent = (agentGateway as any).agents?.get(AgentAction.ComposeMessage) ?? agentGateway;
   
   const interpreter = new ResponseInterpreterAdapter(responseAgent);
-  const templateRepo = new (require("@/src/core/infrastructure/adapters/templates/TemplateRepository").TemplateRepository)();
+  const templateRepo = new TemplateRepository();
   const templateLibrary = new TemplateLibraryAdapter(
     templateRepo,
     new TemplatePerformanceTracker(templateRepo)

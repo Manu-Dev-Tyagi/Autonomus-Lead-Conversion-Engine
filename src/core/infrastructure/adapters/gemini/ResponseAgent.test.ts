@@ -13,7 +13,7 @@ describe("GeminiResponseAgent", () => {
         candidates: [{ content: { parts: [{ text: JSON.stringify({
           confidence: 0.88,
           reasoning: "ok",
-          metadata: { intent: "interested", sentiment: "positive", nextAction: "SCHEDULE_MEETING" },
+          metadata: { intent: "INTERESTED", nextAction: "SCHEDULE_MEETING" },
         }) }] } }],
       }),
     }));

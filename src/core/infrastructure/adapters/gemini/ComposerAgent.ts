@@ -18,11 +18,10 @@ export class GeminiComposerAgent extends BaseGeminiAgent {
       "MISSION: COMPOSE A HYPER-PERSONALIZED, HIGH-CONVERSION EMAIL THAT FEELS HUMAN AND SOLVES A REAL PROBLEM.",
       "",
       "--- CORE PRINCIPLES ---",
-      "1. PERSONALIZATION: USE SPECIFIC DETAILS FROM THE LEAD'S TITLE, COMPANY, OR RECENT NEWS.",
-      "2. VALUE-FIRST: DON'T SELL. PROVIDE AN INSIGHT OR A SOLUTION TO A LIKELY PAIN POINT.",
-      "3. BREVITY: GET TO THE POINT IN < 100 WORDS.",
-      "4. CTA: USE A 'LOW-FRICTION' CALL TO ACTION (e.g., 'Open to a quick chat?' vs 'Book 30 mins').",
-      "5. TONE: PROFESSIONAL YET APPROACHABLE. NO SPAMMY JARGON.",
+      "1. PERSONALIZATION: Tiered approach (Tier 1: Name/Company, Tier 2: Pain points/Size, Tier 3: Events/Competitors).",
+      "2. QUALITY: Word count 75-120 words. No all-caps. Exactly ONE CTA.",
+      "3. SPAM PREVENTION: Max 1 exclamation mark. No images. Max 2 links.",
+      "4. TONE: Follow tenant tone (casual/professional/technical).",
       "",
       "--- CONTEXT ---",
       `LEAD: ${JSON.stringify(context.lead ?? {})}`,
@@ -46,20 +45,19 @@ export class GeminiComposerAgent extends BaseGeminiAgent {
 
   protected validateDecision(decision: AgentDecision): boolean {
     const payload = this.getPayload(decision.metadata);
-    const subject = payload.subject;
-    const emailBody = payload.emailBody;
-    const ctaPresent = payload.ctaPresent;
+    const subject = String(payload.subject || "");
+    const emailBody = String(payload.emailBody || "");
+    const ctaCount = Number(payload.ctaCount || 0);
+    const wordCount = emailBody.split(/\s+/).length;
+    const subjectWordCount = subject.split(/\s+/).length;
+
     return (
       decision.action === AgentAction.ComposeMessage &&
-      Number.isFinite(decision.confidence) &&
-      decision.confidence >= 0 &&
-      decision.confidence <= 1 &&
-      decision.reasoning.trim().length > 0 &&
-      typeof subject === "string" &&
-      subject.length > 0 &&
-      typeof emailBody === "string" &&
-      emailBody.length > 0 &&
-      typeof ctaPresent === "boolean"
+      decision.confidence >= 0.72 &&
+      wordCount >= 50 && wordCount <= 150 &&
+      subjectWordCount >= 3 && subjectWordCount <= 10 &&
+      ctaCount === 1 &&
+      (!emailBody.includes("!") || emailBody.split("!").length <= 2)
     );
   }
 

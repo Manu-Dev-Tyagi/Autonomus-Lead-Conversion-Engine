@@ -118,7 +118,7 @@ describe("Gemini custom agent contracts", () => {
                     text: JSON.stringify({
                       confidence: 0.7,
                       reasoning: "Detected a useful pattern.",
-                      metadata: { patterns: [{ segment: "saas" }], recommendations: [] },
+                      metadata: { suggestedUpdates: [{ component: "sequence", change: "test", impact: "low" }] },
                     }),
                   },
                 ],
@@ -129,7 +129,7 @@ describe("Gemini custom agent contracts", () => {
       }),
     );
     const agent = new GeminiLearningAgent("test-key");
-    const decision = await agent.execute(AgentAction.QualifyLead, { outcomes: 100 });
-    expect(decision.action).toBe(AgentAction.QualifyLead);
+    const decision = await agent.execute(AgentAction.UpdateStrategy, { outcomes: 100 });
+    expect(decision.action).toBe(AgentAction.UpdateStrategy);
   });
 });

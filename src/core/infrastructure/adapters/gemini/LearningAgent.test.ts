@@ -13,11 +13,11 @@ describe("GeminiLearningAgent", () => {
         candidates: [{ content: { parts: [{ text: JSON.stringify({
           confidence: 0.77,
           reasoning: "ok",
-          metadata: { patterns: [{ segment: "saas" }], recommendations: [] },
+          metadata: { suggestedUpdates: [{ component: "sequence", change: "test", impact: "low" }] },
         }) }] } }],
       }),
     }));
     const decision = await new GeminiLearningAgent("test-key").execute(AgentAction.QualifyLead, { outcomes: 100 });
-    expect(decision.action).toBe(AgentAction.QualifyLead);
+    expect(decision.action).toBe(AgentAction.UpdateStrategy);
   });
 });

@@ -22,6 +22,9 @@ describe("GeminiScoringAgent", () => {
                     confidence: 0.82,
                     reasoning: "ICP and intent look strong.",
                     score: 82,
+                    icpScore: 40,
+                    intentScore: 30,
+                    metadata: { qualificationRecommendation: "QUALIFY" },
                     alternatives: ["REVIEW"],
                   }),
                 },
@@ -33,7 +36,8 @@ describe("GeminiScoringAgent", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const agent = new GeminiScoringAgent("test-key", "gemini-test");
+    const mockRagBuilder = { buildContext: vi.fn().mockResolvedValue({ similarLeads: [] }) };
+    const agent = new GeminiScoringAgent("test-key", "gemini-test", {}, mockRagBuilder as any);
     const decision = await agent.execute(AgentAction.ScoreLead, {
       lead: { title: "CTO", industry: "SaaS" },
       tenantConfig: { industries: ["SaaS"] },
@@ -50,7 +54,8 @@ describe("GeminiScoringAgent", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const agent = new GeminiScoringAgent("test-key");
+    const mockRagBuilder = { buildContext: vi.fn().mockResolvedValue({ similarLeads: [] }) };
+    const agent = new GeminiScoringAgent("test-key", undefined, {}, mockRagBuilder as any);
     await expect(
       agent.execute(AgentAction.ScoreLead, {
         lead: { about: "x".repeat(500) },
